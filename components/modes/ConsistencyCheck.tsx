@@ -14,6 +14,7 @@ import {
 import { createTrackingTarget, updateTrackingTargetPosition } from "@/lib/utils/targetSpawning";
 import { buildGameResult } from "@/lib/utils/resultBuilder";
 import { updateStatsWithResult } from "@/lib/utils/statsService";
+import { draw3DBackground, draw3DTarget, ParticleEngine } from "@/lib/utils/gameRendering";
 import SessionHUD from "@/components/SessionHUD";
 import ResultsScreen from "@/components/ResultsScreen";
 
@@ -35,6 +36,7 @@ export default function ConsistencyCheck({ overrideSettings, onFinish }: Consist
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const animationFrameRef = useRef<number | null>(null);
     const timeoutRef = useRef<number | null>(null);
+    const particleEngineRef = useRef<ParticleEngine>(new ParticleEngine());
 
     // BUG FIX: Atomic target ID tracking
     const activeTargetId = useRef<string | null>(null);
@@ -70,6 +72,9 @@ export default function ConsistencyCheck({ overrideSettings, onFinish }: Consist
     const spawnTarget = useCallback(() => {
         clearEngine();
 
+        const newId = Date.now().toString();
+        activeTargetId.current = newId;
+
         const baseTarget = createTrackingTarget(
             overrideSettings?.difficulty ?? difficulty,
             dimensionsRef.current.width,
@@ -77,21 +82,21 @@ export default function ConsistencyCheck({ overrideSettings, onFinish }: Consist
             config.targetRadius
         );
 
-        activeTargetId.current = baseTarget.id;
-
-        targetRef.current = { ...baseTarget, health: 100, isBeingTracked: false };
+        targetRef.current = { ...baseTarget, health: 100, isBeingTracked: false, id: newId };
         setTotalTargetsSpawned(p => p + 1);
         startTrackingLoop();
 
         timeoutRef.current = window.setTimeout(() => {
-            if (activeTargetId.current === baseTarget.id) {
+            if (activeTargetId.current === newId) {
+                if (targetRef.current) {
+                    particleEngineRef.current.spawnExplosion(targetRef.current.x, targetRef.current.y, targetRef.current.radius, false);
+                }
                 setMisses(p => p + 1);
                 setMissedByTimeout(p => p + 1);
                 setScore(p => Math.max(0, p - config.missPenalty));
                 spawnTarget();
             }
         }, config.targetLifetimeMs + 1000);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [difficulty, config, overrideSettings, clearEngine]);
 
     const startTrackingLoop = () => {
@@ -120,6 +125,7 @@ export default function ConsistencyCheck({ overrideSettings, onFinish }: Consist
 
                 // BUG FIX: Atomic check before spawning next target
                 if (newHealth <= 0 && targetRef.current.id === activeTargetId.current) {
+                    particleEngineRef.current.spawnExplosion(nextPos.x, nextPos.y, nextPos.radius, true);
                     activeTargetId.current = null;
                     setHits(h => h + 1);
                     setScore(s => s + config.scorePerHit + 50);
@@ -130,34 +136,27 @@ export default function ConsistencyCheck({ overrideSettings, onFinish }: Consist
                     return;
                 }
 
-                targetRef.current = { ...nextPos, health: newHealth, isBeingTracked: isHit };
+                targetRef.current = { ...nextPos, health: newHealth, isBeingTracked: isHit, id: targetRef.current.id };
 
-                ctx.clearRect(0, 0, dimensionsRef.current.width, dimensionsRef.current.height);
-                renderTarget(ctx, targetRef.current);
+                draw3DBackground(ctx, dimensionsRef.current.width, dimensionsRef.current.height);
+                
+                const t = targetRef.current;
+                if (t.isBeingTracked) {
+                    particleEngineRef.current.spawnTrail(t.x, t.y, t.radius, "#8b5cf6");
+                }
+                
+                draw3DTarget(ctx, t.x, t.y, t.radius, t.isBeingTracked ? "violet" : "violet", performance.now());
+                particleEngineRef.current.updateAndDraw(ctx);
             }
             animationFrameRef.current = requestAnimationFrame(tick);
         };
         animationFrameRef.current = requestAnimationFrame(tick);
     };
 
-    const renderTarget = (ctx: CanvasRenderingContext2D, t: TrueTrackingTarget) => {
-        const gradient = ctx.createRadialGradient(
-            t.x - t.radius * 0.3, t.y - t.radius * 0.3, t.radius * 0.1,
-            t.x, t.y, t.radius
-        );
-
-        const color = t.isBeingTracked ? "#a78bfa" : "#8b5cf6";
-        gradient.addColorStop(0, "#DDD6FE");
-        gradient.addColorStop(0.3, color);
-        gradient.addColorStop(1, "#3b0764");
-
-        ctx.beginPath();
-        ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
-        ctx.fillStyle = gradient;
-        ctx.shadowColor = t.isBeingTracked ? "rgba(167,139,250,0.8)" : "rgba(0,0,0,0.6)";
-        ctx.shadowBlur = 25;
-        ctx.fill();
-    };
+    // Render logic (Canvas) - Handled in startTrackingLoop
+    useEffect(() => () => {
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    }, []);
 
     const computeStability = (times: number[]) => {
         if (times.length < 5) return { score: 0, label: "Insufficient Data" };
@@ -170,6 +169,28 @@ export default function ConsistencyCheck({ overrideSettings, onFinish }: Consist
         if (stability > 90) label = "Robotic Precision";
         else if (stability > 75) label = "Highly Stable";
         return { score: stability, label };
+    };
+
+    const startGame = async () => {
+        try {
+            if (containerRef.current && !document.fullscreenElement) {
+                await containerRef.current.requestFullscreen();
+            }
+        } catch (err) {
+            console.error("Error attempting to enable fullscreen:", err);
+        }
+
+        setGameStarted(true);
+        setScore(0);
+        setHits(0);
+        setMisses(0);
+        setReactionTimes([]);
+        setTotalTargetsSpawned(0);
+        setMissedByTimeout(0);
+        setTimeLeft(ENDURANCE_DURATION);
+        setIsFinished(false);
+        setResult(null);
+        setCountdown(3);
     };
 
     const endSession = async () => {
@@ -200,28 +221,6 @@ export default function ConsistencyCheck({ overrideSettings, onFinish }: Consist
         if (document.fullscreenElement) await document.exitFullscreen().catch(() => { });
         if (onFinish) onFinish(resultData);
         else { setResult(resultData); setIsFinished(true); }
-    };
-
-    const startGame = async () => {
-        clearEngine();
-        activeTargetId.current = null;
-        setGameStarted(true);
-        setIsFinished(false);
-        setTimeLeft(ENDURANCE_DURATION);
-        setCountdown(5);
-        targetRef.current = null;
-        mouseRef.current = { isFiring: false, x: 0, y: 0 };
-        setScore(0);
-        setHits(0);
-        setMisses(0);
-        setReactionTimes([]);
-        setTotalTargetsSpawned(0);
-        setMissedByTimeout(0);
-        setResult(null);
-
-        if (containerRef.current && !document.fullscreenElement) {
-            await containerRef.current.requestFullscreen().catch(() => { });
-        }
     };
 
     useEffect(() => {
@@ -265,7 +264,7 @@ export default function ConsistencyCheck({ overrideSettings, onFinish }: Consist
             )}
 
             {gameStarted && (
-                <div className="relative flex-1 w-full overflow-hidden bg-[#2f3b4c]">
+                <div className="relative flex-1 w-full overflow-hidden bg-black">
                     <SessionHUD data={{ mode: "Consistency Check", difficulty: difficultyLabels[difficulty], timeLeft, score, hits, misses, accuracy, averageReactionTime: calculateAverageReactionTime(reactionTimes), bestReactionTime: calculateBestReactionTime(reactionTimes) }} />
                     <canvas
                         ref={canvasRef}

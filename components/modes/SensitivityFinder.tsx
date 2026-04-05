@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { updateStatsWithResult } from "@/lib/utils/statsService";
 import type { CalibrationResult, CalibrationTrial } from "@/lib/game/calibration";
 import { analyzeCalibrationTrials, buildSensitivityCandidates } from "@/lib/utils/calibrationAnalysis";
 

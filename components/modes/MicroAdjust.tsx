@@ -14,6 +14,7 @@ import {
 import { createMicroAdjustTarget } from "@/lib/utils/targetSpawning";
 import { buildGameResult } from "@/lib/utils/resultBuilder";
 import { updateStatsWithResult } from "@/lib/utils/statsService";
+import { draw3DBackground, draw3DTarget, ParticleEngine } from "@/lib/utils/gameRendering";
 
 import SessionHUD from "@/components/SessionHUD";
 import ResultsScreen from "@/components/ResultsScreen";
@@ -22,15 +23,16 @@ interface OverrideSettings { difficulty: Difficulty; duration: number; }
 interface MicroAdjustProps { overrideSettings?: OverrideSettings; onFinish?: (result: GameResult) => void; }
 
 export default function MicroAdjust({ overrideSettings, onFinish }: MicroAdjustProps = {}) {
-    const { user } = useAuth();
+    const { user, isLoggedIn } = useAuth();
     const containerRef = useRef<HTMLDivElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const animationFrameRef = useRef<number | null>(null);
     const timeoutRef = useRef<number | null>(null);
+    const particleEngineRef = useRef<ParticleEngine>(new ParticleEngine());
 
     // BUG FIX: Atomic ID tracking for high-precision clicks
-    const activeTargetId = useRef<string | null>(null);
-    const targetRef = useRef<BaseTarget | null>(null);
+    const activeTargetId = useRef<number>(0);
+    const targetRef = useRef<(Omit<BaseTarget, "id"> & { id: number }) | null>(null);
     const dimensionsRef = useRef({ width: 1600, height: 900 });
 
     const [renderDimensions, setRenderDimensions] = useState({ width: 1600, height: 900 });
@@ -56,6 +58,13 @@ export default function MicroAdjust({ overrideSettings, onFinish }: MicroAdjustP
     const config = difficultyConfig[effectiveDifficulty];
     const microRadius = Math.max(10, Math.round(config.targetRadius * 0.65));
 
+    const [ripples, setRipples] = useState<{ id: number, x: number, y: number }[]>([]);
+    const addRipple = useCallback((x: number, y: number) => {
+        const id = Date.now();
+        setRipples(p => [...p, { id, x, y }]);
+        setTimeout(() => setRipples(p => p.filter(r => r.id !== id)), 600);
+    }, []);
+
     const accuracy = useMemo(() => calculateAccuracy(hits, misses), [hits, misses]);
 
     const clearEngineTimers = useCallback(() => {
@@ -63,8 +72,18 @@ export default function MicroAdjust({ overrideSettings, onFinish }: MicroAdjustP
         if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
     }, []);
 
+    const clearTargetTimeout = useCallback(() => {
+        if (timeoutRef.current !== null) {
+            window.clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+        }
+    }, []);
+
     const spawnTarget = useCallback(() => {
-        clearEngineTimers();
+        clearTargetTimeout();
+
+        const newId = Date.now();
+        activeTargetId.current = newId;
 
         const currentX = targetRef.current?.x;
         const currentY = targetRef.current?.y;
@@ -77,30 +96,31 @@ export default function MicroAdjust({ overrideSettings, onFinish }: MicroAdjustP
             currentY
         );
 
-        const newId = nextTarget.id;
-        activeTargetId.current = newId;
-
-        targetRef.current = nextTarget;
+        targetRef.current = { ...nextTarget, id: newId };
         setTotalTargetsSpawned((prev) => prev + 1);
 
         timeoutRef.current = window.setTimeout(() => {
             if (activeTargetId.current === newId) {
+                if (targetRef.current) {
+                    particleEngineRef.current.spawnExplosion(targetRef.current.x, targetRef.current.y, targetRef.current.radius, false);
+                }
                 setMisses((prev) => prev + 1);
                 setMissedByTimeout((prev) => prev + 1);
                 setScore((prev) => Math.max(0, prev - config.missPenalty));
                 spawnTarget();
             }
         }, config.targetLifetimeMs);
-    }, [config, microRadius, clearEngineTimers]);
+    }, [config, microRadius, clearTargetTimeout]);
 
     const resetState = () => {
         clearEngineTimers();
-        activeTargetId.current = null;
+        activeTargetId.current = 0;
         setGameStarted(false);
         setIsFinished(false);
         setTimeLeft(effectiveDuration);
         setCountdown(null);
         targetRef.current = null;
+        particleEngineRef.current.particles = [];
         setScore(0);
         setHits(0);
         setMisses(0);
@@ -122,7 +142,7 @@ export default function MicroAdjust({ overrideSettings, onFinish }: MicroAdjustP
 
     const endSession = async () => {
         clearEngineTimers();
-        activeTargetId.current = null;
+        activeTargetId.current = 0;
         setGameStarted(false);
         targetRef.current = null;
 
@@ -148,20 +168,14 @@ export default function MicroAdjust({ overrideSettings, onFinish }: MicroAdjustP
             const canvas = canvasRef.current;
             const ctx = canvas?.getContext("2d");
             if (canvas && ctx) {
-                ctx.clearRect(0, 0, dimensionsRef.current.width, dimensionsRef.current.height);
+                draw3DBackground(ctx, dimensionsRef.current.width, dimensionsRef.current.height);
+
                 const t = targetRef.current;
-                if (t) {
-                    const gradient = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, t.radius);
-                    gradient.addColorStop(0, "#FFFFFF");
-                    gradient.addColorStop(0.3, "#A855F7");
-                    gradient.addColorStop(1, "#4C1D95");
-                    ctx.beginPath();
-                    ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
-                    ctx.fillStyle = gradient;
-                    ctx.shadowColor = "rgba(168, 85, 247, 0.4)";
-                    ctx.shadowBlur = 20;
-                    ctx.fill();
+                if (t && t.id === activeTargetId.current) {
+                    draw3DTarget(ctx, t.x, t.y, t.radius, "emerald", performance.now());
                 }
+                
+                particleEngineRef.current.updateAndDraw(ctx);
             }
             animationFrameRef.current = requestAnimationFrame(tick);
         };
@@ -183,6 +197,20 @@ export default function MicroAdjust({ overrideSettings, onFinish }: MicroAdjustP
     }, [gameStarted, countdown]);
 
     useEffect(() => {
+        if (!gameStarted) return;
+        const updateSize = () => {
+            if (canvasRef.current && canvasRef.current.parentElement) {
+                const { clientWidth, clientHeight } = canvasRef.current.parentElement;
+                dimensionsRef.current = { width: clientWidth, height: clientHeight };
+                setRenderDimensions({ width: clientWidth, height: clientHeight });
+            }
+        };
+        window.addEventListener("resize", updateSize);
+        updateSize();
+        return () => window.removeEventListener("resize", updateSize);
+    }, [gameStarted]);
+
+    useEffect(() => {
         if (gameStarted && timeLeft === 0 && !isFinished) endSession();
     }, [timeLeft, gameStarted, isFinished]);
 
@@ -191,20 +219,28 @@ export default function MicroAdjust({ overrideSettings, onFinish }: MicroAdjustP
 
         if (targetRef.current.id !== activeTargetId.current) return;
 
+        addRipple(event.clientX, event.clientY);
+
         const canvas = canvasRef.current;
         if (!canvas) return;
 
         const { x, y } = getScaledCanvasCoordinates(event, canvas, dimensionsRef.current.width, dimensionsRef.current.height);
 
         if (isPointInsideTarget(x, y, targetRef.current.x, targetRef.current.y, targetRef.current.radius)) {
-            activeTargetId.current = null;
+            particleEngineRef.current.spawnExplosion(targetRef.current.x, targetRef.current.y, targetRef.current.radius, true);
+
+            activeTargetId.current = 0;
             setHits((prev) => prev + 1);
             setReactionTimes((prev) => [...prev, performance.now() - targetRef.current!.spawnedAt]);
             setScore((prev) => prev + config.scorePerHit);
             spawnTarget();
         } else {
+            // USER REQUEST: Shatter immediately on miss!
+            particleEngineRef.current.spawnExplosion(targetRef.current.x, targetRef.current.y, targetRef.current.radius, false);
+            activeTargetId.current = 0;
             setMisses((prev) => prev + 1);
             setScore((prev) => Math.max(0, prev - config.missPenalty));
+            spawnTarget();
         }
     };
 
@@ -223,6 +259,26 @@ export default function MicroAdjust({ overrideSettings, onFinish }: MicroAdjustP
                             <p className="text-[#A855F7] text-sm font-bold tracking-[0.3em] uppercase">AimSync Protocol</p>
                             <h2 className="text-5xl font-black tracking-widest uppercase">Micro Adjust</h2>
                         </div>
+                        <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-6 justify-center pt-4">
+                            <label className="flex flex-col text-left flex-1">
+                                <span className="text-gray-400 text-xs font-bold tracking-wider mb-2 uppercase">Difficulty</span>
+                                <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as Difficulty)} className="bg-black/80 border border-white/20 p-4 rounded-xl text-white outline-none">
+                                    {Object.entries(difficultyLabels)
+                                        .filter(([key]) => isLoggedIn ? true : ["easy", "medium"].includes(key))
+                                        .map(([key, label]) => (
+                                        <option key={key} value={key}>{label.toUpperCase()}</option>
+                                    ))}
+                                </select>
+                            </label>
+                            <label className="flex flex-col text-left flex-1">
+                                <span className="text-gray-400 text-xs font-bold tracking-wider mb-2 uppercase">Duration</span>
+                                <select value={durationSeconds} onChange={(e) => setDurationSeconds(Number(e.target.value))} className="bg-black/80 border border-white/20 p-4 rounded-xl text-white outline-none">
+                                    <option value={15}>15s</option>
+                                    <option value={30}>30s</option>
+                                    <option value={60}>60s</option>
+                                </select>
+                            </label>
+                        </div>
                         <button onClick={startGame} className="w-full mt-8 px-12 py-5 bg-white text-[#121212] text-lg font-black tracking-[0.2em] rounded-xl hover:bg-[#A855F7] hover:text-white transition-all uppercase">
                             Initialize Sequence
                         </button>
@@ -235,8 +291,11 @@ export default function MicroAdjust({ overrideSettings, onFinish }: MicroAdjustP
                     <div className="relative z-30 shrink-0 w-full bg-[#050505]/90 border-b border-white/10 backdrop-blur-sm">
                         <SessionHUD data={{ mode: "Micro Adjust", difficulty: difficultyLabels[difficulty], timeLeft, score, hits, misses, accuracy, averageReactionTime: calculateAverageReactionTime(reactionTimes), bestReactionTime: calculateBestReactionTime(reactionTimes) }} />
                     </div>
-                    <div className="relative flex-1 w-full overflow-hidden bg-[#2f3b4c]">
+                    <div className="relative flex-1 w-full overflow-hidden bg-black">
                         <canvas ref={canvasRef} width={renderDimensions.width} height={renderDimensions.height} onMouseDown={handleCanvasMouseDown} className="absolute inset-0 block cursor-crosshair" />
+                        {ripples.map(r => (
+                            <div key={r.id} className="fixed w-16 h-16 border-2 border-[#10B981] rounded-full animate-ping pointer-events-none z-50 origin-center" style={{ left: r.x - 32, top: r.y - 32 }} />
+                        ))}
                         {countdown !== null && (
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                 <span className="text-[12rem] font-black text-[#A855F7] animate-ping">{countdown}</span>

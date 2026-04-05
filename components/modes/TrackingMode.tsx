@@ -14,12 +14,13 @@ import {
 import { createTrackingTarget, updateTrackingTargetPosition } from "@/lib/utils/targetSpawning";
 import { buildGameResult } from "@/lib/utils/resultBuilder";
 import { updateStatsWithResult } from "@/lib/utils/statsService";
+import { draw3DBackground, draw3DTarget, ParticleEngine } from "@/lib/utils/gameRendering";
 
 import SessionHUD from "@/components/SessionHUD";
 import ResultsScreen from "@/components/ResultsScreen";
 
 // Extend target type for atomic tracking
-type TrueTrackingTarget = MovingTarget & { health: number; isBeingTracked: boolean };
+type TrueTrackingTarget = MovingTarget & { health: number; isBeingTracked: boolean; id: string };
 
 interface OverrideSettings { difficulty: Difficulty; duration: number; }
 interface TrackingModeProps { overrideSettings?: OverrideSettings; onFinish?: (result: GameResult) => void; }
@@ -31,6 +32,7 @@ export default function TrackingMode({ overrideSettings, onFinish }: TrackingMod
 
     const animationFrameRef = useRef<number | null>(null);
     const timeoutRef = useRef<number | null>(null);
+    const particleEngineRef = useRef<ParticleEngine>(new ParticleEngine());
 
     // BUG FIX: Atomic ID tracking to synchronize movement and health logic
     const activeTargetId = useRef<string | null>(null);
@@ -58,6 +60,13 @@ export default function TrackingMode({ overrideSettings, onFinish }: TrackingMod
     const [missedByTimeout, setMissedByTimeout] = useState(0);
     const [result, setResult] = useState<GameResult | null>(null);
 
+    const [ripples, setRipples] = useState<{ id: number, x: number, y: number }[]>([]);
+    const addRipple = useCallback((x: number, y: number) => {
+        const id = Date.now();
+        setRipples(p => [...p, { id, x, y }]);
+        setTimeout(() => setRipples(p => p.filter(r => r.id !== id)), 600);
+    }, []);
+
     const config = difficultyConfig[effectiveDifficulty];
     const accuracy = useMemo(() => calculateAccuracy(hits, misses), [hits, misses]);
 
@@ -79,6 +88,10 @@ export default function TrackingMode({ overrideSettings, onFinish }: TrackingMod
         clearTargetTimeout();
         clearAnimation();
 
+        // Generate atomic ID for the tracking target
+        const newId = Date.now().toString();
+        activeTargetId.current = newId;
+
         const baseTarget = createTrackingTarget(
             effectiveDifficulty,
             dimensionsRef.current.width,
@@ -86,14 +99,11 @@ export default function TrackingMode({ overrideSettings, onFinish }: TrackingMod
             config.targetRadius
         );
 
-        // Generate atomic ID for the tracking target
-        const newId = baseTarget.id;
-        activeTargetId.current = newId;
-
         targetRef.current = {
             ...baseTarget,
             health: 100,
-            isBeingTracked: false
+            isBeingTracked: false,
+            id: newId
         };
 
         setTotalTargetsSpawned((prev) => prev + 1);
@@ -102,6 +112,9 @@ export default function TrackingMode({ overrideSettings, onFinish }: TrackingMod
         timeoutRef.current = window.setTimeout(() => {
             // Only timeout if this is still the active ID
             if (activeTargetId.current === newId) {
+                if (targetRef.current) {
+                    particleEngineRef.current.spawnExplosion(targetRef.current.x, targetRef.current.y, targetRef.current.radius, false);
+                }
                 setMisses((prev) => prev + 1);
                 setMissedByTimeout((prev) => prev + 1);
                 setScore((prev) => Math.max(0, prev - config.missPenalty));
@@ -134,6 +147,7 @@ export default function TrackingMode({ overrideSettings, onFinish }: TrackingMod
 
                 // BUG FIX: Atomic check before kill-respawn
                 if (newHealth <= 0 && targetRef.current.id === activeTargetId.current) {
+                    particleEngineRef.current.spawnExplosion(targetRef.current.x, targetRef.current.y, targetRef.current.radius, true);
                     activeTargetId.current = null; // Invalidate immediately
                     targetRef.current = null;
                     setHits(h => h + 1);
@@ -149,27 +163,17 @@ export default function TrackingMode({ overrideSettings, onFinish }: TrackingMod
                     id: targetRef.current.id
                 } as TrueTrackingTarget;
 
-                ctx.clearRect(0, 0, dimensionsRef.current.width, dimensionsRef.current.height);
+                draw3DBackground(ctx, dimensionsRef.current.width, dimensionsRef.current.height);
 
                 const t = targetRef.current;
-                const gradient = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, t.radius);
-
+                
                 if (t.isBeingTracked) {
-                    gradient.addColorStop(0, "#FFFFFF");
-                    gradient.addColorStop(0.3, "#00E5FF");
-                    gradient.addColorStop(1, "#005566");
-                } else {
-                    gradient.addColorStop(0, "#FFAAAA");
-                    gradient.addColorStop(0.3, "#EF4444");
-                    gradient.addColorStop(1, "#660000");
+                    // Spray particles continuously while tracking correctly
+                    particleEngineRef.current.spawnTrail(t.x, t.y, t.radius, "#10B981");
                 }
-
-                ctx.beginPath();
-                ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
-                ctx.fillStyle = gradient;
-                ctx.shadowColor = t.isBeingTracked ? "rgba(0, 229, 255, 0.5)" : "rgba(0,0,0,0.6)";
-                ctx.shadowBlur = 25;
-                ctx.fill();
+                
+                draw3DTarget(ctx, t.x, t.y, t.radius, t.isBeingTracked ? "cyan" : "emerald", performance.now());
+                particleEngineRef.current.updateAndDraw(ctx);
             }
             animationFrameRef.current = requestAnimationFrame(tick);
         };
@@ -193,6 +197,7 @@ export default function TrackingMode({ overrideSettings, onFinish }: TrackingMod
         setTotalTargetsSpawned(0);
         setMissedByTimeout(0);
         setResult(null);
+        particleEngineRef.current.particles = [];
     };
 
     const startGame = async () => {
@@ -244,6 +249,20 @@ export default function TrackingMode({ overrideSettings, onFinish }: TrackingMod
     }, [gameStarted, countdown]);
 
     useEffect(() => {
+        if (!gameStarted) return;
+        const updateSize = () => {
+            if (canvasRef.current && canvasRef.current.parentElement) {
+                const { clientWidth, clientHeight } = canvasRef.current.parentElement;
+                dimensionsRef.current = { width: clientWidth, height: clientHeight };
+                setRenderDimensions({ width: clientWidth, height: clientHeight });
+            }
+        };
+        window.addEventListener("resize", updateSize);
+        updateSize();
+        return () => window.removeEventListener("resize", updateSize);
+    }, [gameStarted]);
+
+    useEffect(() => {
         if (gameStarted && timeLeft === 0 && !isFinished) endSession();
     }, [timeLeft, gameStarted, isFinished, endSession]);
 
@@ -281,17 +300,26 @@ export default function TrackingMode({ overrideSettings, onFinish }: TrackingMod
                     <div className="relative z-30 shrink-0 w-full bg-[#050505]/90 border-b border-white/10 backdrop-blur-sm">
                         <SessionHUD data={{ mode: "Tracking Protocol", difficulty: difficultyLabels[difficulty], timeLeft, score, hits, misses, accuracy: calculateAccuracy(hits, misses), averageReactionTime: calculateAverageReactionTime(reactionTimes), bestReactionTime: calculateBestReactionTime(reactionTimes) }} />
                     </div>
-                    <div className="relative flex-1 w-full overflow-hidden bg-[#2f3b4c]">
+                    <div className="relative flex-1 w-full overflow-hidden bg-black">
                         <canvas
                             ref={canvasRef}
                             width={renderDimensions.width}
                             height={renderDimensions.height}
-                            onMouseDown={(e) => { if (!countdown) { mouseRef.current.isFiring = true; updateMousePosition(e); } }}
+                            onMouseDown={(e) => { 
+                                if (!countdown) { 
+                                    mouseRef.current.isFiring = true; 
+                                    updateMousePosition(e); 
+                                    addRipple(e.clientX, e.clientY);
+                                } 
+                            }}
                             onMouseUp={() => { mouseRef.current.isFiring = false; }}
                             onMouseMove={updateMousePosition}
                             onMouseLeave={() => { mouseRef.current.isFiring = false; }}
                             className="absolute inset-0 block cursor-crosshair"
                         />
+                        {ripples.map(r => (
+                            <div key={r.id} className="fixed w-16 h-16 border-2 border-[#10B981] rounded-full animate-ping pointer-events-none z-50 origin-center" style={{ left: r.x - 32, top: r.y - 32 }} />
+                        ))}
                         {countdown !== null && (
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                 <span className="text-[12rem] font-black text-[#3366FF] animate-ping">{countdown}</span>

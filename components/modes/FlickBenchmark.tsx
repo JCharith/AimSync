@@ -14,6 +14,7 @@ import {
 import { createStaticTarget } from "@/lib/utils/targetSpawning";
 import { buildGameResult } from "@/lib/utils/resultBuilder";
 import { updateStatsWithResult } from "@/lib/utils/statsService";
+import { draw3DBackground, draw3DTarget, ParticleEngine } from "@/lib/utils/gameRendering";
 import SessionHUD from "@/components/SessionHUD";
 import ResultsScreen from "@/components/ResultsScreen";
 
@@ -27,9 +28,12 @@ export default function FlickBenchmark({ onFinish }: { onFinish?: (res: GameResu
     const containerRef = useRef<HTMLDivElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const timeoutRef = useRef<number | null>(null);
+    const animationFrameRef = useRef<number | null>(null);
+    const particleEngineRef = useRef<ParticleEngine>(new ParticleEngine());
 
     // BUG FIX: Atomic ID tracking
     const activeTargetId = useRef<string | null>(null);
+    const targetRef = useRef<BaseTarget | null>(null);
     const dimensionsRef = useRef({ width: 1600, height: 900 });
 
     const [renderDimensions, setRenderDimensions] = useState({ width: 1600, height: 900 });
@@ -38,7 +42,6 @@ export default function FlickBenchmark({ onFinish }: { onFinish?: (res: GameResu
     const [countdown, setCountdown] = useState(3);
     const [timeLeft, setTimeLeft] = useState(BENCHMARK_DURATION);
 
-    const [target, setTarget] = useState<BaseTarget | null>(null);
     const [score, setScore] = useState(0);
     const [hits, setHits] = useState(0);
     const [misses, setMisses] = useState(0);
@@ -60,16 +63,18 @@ export default function FlickBenchmark({ onFinish }: { onFinish?: (res: GameResu
 
     const spawnTarget = useCallback(() => {
         clearTargetTimeout();
-        
-        const next = createStaticTarget(dimensionsRef.current.width, dimensionsRef.current.height, config.targetRadius);
-        const newId = next.id;
-        activeTargetId.current = newId;
 
-        setTarget(next);
+        const next = createStaticTarget(dimensionsRef.current.width, dimensionsRef.current.height, config.targetRadius);
+        activeTargetId.current = next.id;
+
+        targetRef.current = next;
         setTotalTargetsSpawned(p => p + 1);
 
         timeoutRef.current = window.setTimeout(() => {
-            if (activeTargetId.current === newId) {
+            if (activeTargetId.current === next.id) {
+                if (targetRef.current) {
+                    particleEngineRef.current.spawnExplosion(targetRef.current.x, targetRef.current.y, targetRef.current.radius, false);
+                }
                 setMisses(p => p + 1);
                 setMissedByTimeout(p => p + 1);
                 spawnTarget();
@@ -81,13 +86,15 @@ export default function FlickBenchmark({ onFinish }: { onFinish?: (res: GameResu
         if (containerRef.current && !document.fullscreenElement) {
             await containerRef.current.requestFullscreen().catch(() => { });
         }
+        startRenderLoop();
         setPhase("COUNTDOWN");
     };
 
     const endSession = useCallback(async () => {
         clearTargetTimeout();
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
         activeTargetId.current = null;
-        setTarget(null);
+        targetRef.current = null;
         setPhase("CALCULATING");
 
         if (document.fullscreenElement) await document.exitFullscreen().catch(() => { });
@@ -140,41 +147,49 @@ export default function FlickBenchmark({ onFinish }: { onFinish?: (res: GameResu
         if (phase === "ACTIVE" && timeLeft === 0) endSession();
     }, [timeLeft, phase, endSession]);
 
+    const startRenderLoop = () => {
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+        const tick = () => {
+            const canvas = canvasRef.current;
+            const ctx = canvas?.getContext("2d");
+            if (canvas && ctx) {
+                draw3DBackground(ctx, dimensionsRef.current.width, dimensionsRef.current.height);
+                const t = targetRef.current;
+                if (t && activeTargetId.current === t.id) {
+                    draw3DTarget(ctx, t.x, t.y, t.radius, "emerald", performance.now());
+                }
+                particleEngineRef.current.updateAndDraw(ctx);
+            }
+            animationFrameRef.current = requestAnimationFrame(tick);
+        };
+        animationFrameRef.current = requestAnimationFrame(tick);
+    };
+
     const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-        if (phase !== "ACTIVE" || !target || activeTargetId.current !== target.id) return;
+        if (phase !== "ACTIVE" || !targetRef.current || activeTargetId.current !== targetRef.current.id) return;
 
         const canvas = canvasRef.current;
         if (!canvas) return;
         const { x, y } = getScaledCanvasCoordinates(e, canvas, dimensionsRef.current.width, dimensionsRef.current.height);
 
-        if (isPointInsideTarget(x, y, target.x, target.y, target.radius)) {
+        if (isPointInsideTarget(x, y, targetRef.current.x, targetRef.current.y, targetRef.current.radius)) {
+            particleEngineRef.current.spawnExplosion(targetRef.current.x, targetRef.current.y, targetRef.current.radius, true);
             activeTargetId.current = null; // Invalidate immediately
             setHits(p => p + 1);
-            setReactionTimes(p => [...p, performance.now() - target.spawnedAt]);
+            setReactionTimes(p => [...p, performance.now() - targetRef.current!.spawnedAt]);
             spawnTarget();
         } else {
+            particleEngineRef.current.spawnExplosion(targetRef.current.x, targetRef.current.y, targetRef.current.radius, false);
+            activeTargetId.current = null; // Destroy
             setMisses(p => p + 1);
+            spawnTarget();
         }
     };
 
-    // Render logic (Canvas)
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas || !target) return;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        ctx.clearRect(0, 0, dimensionsRef.current.width, dimensionsRef.current.height);
-
-        const gradient = ctx.createRadialGradient(target.x, target.y, 0, target.x, target.y, target.radius);
-        gradient.addColorStop(0, "#FFCCE8");
-        gradient.addColorStop(1, "#ec4899");
-        ctx.beginPath();
-        ctx.arc(target.x, target.y, target.radius, 0, Math.PI * 2);
-        ctx.fillStyle = gradient;
-        ctx.shadowColor = "#ec4899";
-        ctx.shadowBlur = 15;
-        ctx.fill();
-    }, [target]);
+    // Render logic (Canvas) - Handled in startRenderLoop
+    useEffect(() => () => {
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    }, []);
 
     return (
         <div ref={containerRef} className="relative w-full h-screen bg-[#121212] overflow-hidden">
@@ -205,7 +220,7 @@ export default function FlickBenchmark({ onFinish }: { onFinish?: (res: GameResu
             {phase === "ACTIVE" && (
                 <div className="h-full flex flex-col">
                     <SessionHUD data={{ mode: "Benchmark", difficulty: difficultyLabels[difficulty], timeLeft, score, hits, misses, accuracy, averageReactionTime: calculateAverageReactionTime(reactionTimes), bestReactionTime: calculateBestReactionTime(reactionTimes) }} />
-                    <canvas ref={canvasRef} width={renderDimensions.width} height={renderDimensions.height} onClick={handleCanvasClick} className="flex-1 cursor-crosshair bg-[#0d1117]" />
+                    <canvas ref={canvasRef} width={renderDimensions.width} height={renderDimensions.height} onClick={handleCanvasClick} className="flex-1 cursor-crosshair bg-black" />
                 </div>
             )}
         </div>

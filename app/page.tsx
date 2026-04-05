@@ -1,60 +1,66 @@
-import Link from "next/link";
+import Link from 'next/link';
 
-export default function Home() {
-  return (
-    <main className="min-h-screen bg-gray-950 text-gray-200 selection:bg-emerald-500/30 overflow-hidden relative flex flex-col pt-16">
+export default function LandingPage() {
+    return (
+        <main className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6 relative overflow-hidden">
+            {/* Background elements */}
+            <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center opacity-10 pointer-events-none" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-emerald-500/10 blur-[150px] rounded-full pointer-events-none z-0" />
+            
+            <div className="relative z-10 flex flex-col items-center text-center max-w-4xl space-y-8 mt-16">
+                
+                {/* Badge */}
+                <div className="px-4 py-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-bold tracking-widest uppercase mb-4 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                    Early Access Agent Build
+                </div>
 
-      {/* Background Grid & Glow Effects */}
-      <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))] opacity-10 pointer-events-none" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-emerald-500/10 blur-[120px] rounded-full pointer-events-none" />
+                {/* Hero Title */}
+                <h1 className="text-5xl md:text-7xl font-black text-white tracking-tighter uppercase leading-tight drop-shadow-2xl">
+                    Precision <span className="text-emerald-500">Mechanics</span><br/>
+                    In Your Browser
+                </h1>
 
-      {/* Hero Section */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 text-center z-10 gap-8">
+                {/* Subtitle */}
+                <p className="text-gray-400 text-lg md:text-xl font-medium max-w-2xl mt-6">
+                    A dedicated, low-latency environment designed to push human reaction time and fine motor control. Train your aim natively without heavy downloads.
+                </p>
 
-        {/* Version Badge */}
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-widest">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          System Online
-        </div>
+                {/* CTA Buttons */}
+                <div className="flex flex-col sm:flex-row items-center gap-6 mt-10">
+                    <Link 
+                        href="/game" 
+                        className="group relative px-8 py-4 bg-emerald-500 text-gray-950 font-black tracking-widest uppercase rounded-lg hover:bg-emerald-400 transition-all duration-300 hover:scale-105 shadow-[0_0_30px_rgba(16,185,129,0.3)] hover:shadow-[0_0_50px_rgba(16,185,129,0.6)]"
+                    >
+                        <span className="relative z-10">Initialize Training</span>
+                        <div className="absolute inset-0 bg-white/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity rounded-lg" />
+                    </Link>
+                    
+                    <Link 
+                        href="/login" 
+                        className="px-8 py-4 border border-gray-700 bg-gray-900/50 backdrop-blur-sm text-gray-300 font-bold tracking-widest uppercase rounded-lg hover:border-emerald-500/50 hover:bg-gray-800 transition-all duration-300"
+                    >
+                        Sign In Profile
+                    </Link>
+                </div>
 
-        {/* Main Title */}
-        <div className="space-y-4">
-          <h1 className="text-7xl md:text-8xl font-black tracking-tighter uppercase leading-none">
-            <span className="text-white">AIM</span>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-600">SYNC</span>
-          </h1>
-          <p className="text-sm md:text-base font-semibold tracking-[0.3em] uppercase text-gray-400">
-            Calibrate Your Mechanics.
-          </p>
-        </div>
-
-        {/* CTA Row */}
-        <div className="flex flex-col items-center gap-6 mt-4">
-          <Link
-            href="/game"
-            className="group relative inline-flex items-center justify-center px-10 py-4 font-black uppercase tracking-widest text-gray-950 transition-all duration-300 bg-emerald-500 rounded-md hover:bg-emerald-400 hover:scale-105 shadow-[0_0_30px_rgba(16,185,129,0.3)] hover:shadow-[0_0_50px_rgba(16,185,129,0.6)]"
-          >
-            Deploy Now
-            <svg className="w-5 h-5 ml-3 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="square" strokeLinejoin="miter" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
-          </Link>
-
-          {/* Subtext */}
-          <p className="max-w-md text-gray-500 text-sm leading-relaxed font-medium">
-            The ultimate environment to perfect your crosshair placement, flick consistency, and tracking stamina.
-          </p>
-        </div>
-
-      </div>
-
-      {/* Footer / Tech Stack Tagline */}
-      <div className="w-full py-8 text-center z-10 border-t border-gray-900/50">
-        <p className="text-gray-600 text-xs uppercase tracking-[0.2em] font-bold">
-          Powered by React • Telemetry via Firestore
-        </p>
-      </div>
-
-    </main>
-  );
+                {/* Stats / Features Row */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-20 w-full">
+                    {[
+                        { title: "Browser Native", desc: "No installs required. Instant execution." },
+                        { title: "Raw Input", desc: "1:1 mapping with no artificial acceleration." },
+                        { title: "Analytics", desc: "Track macro & micro performance metrics." }
+                    ].map((feature, i) => (
+                        <div key={i} className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800 backdrop-blur-sm hover:border-emerald-500/30 transition-colors group">
+                            <h3 className="text-emerald-400 font-bold uppercase tracking-wider mb-2 text-sm group-hover:text-emerald-300 transition-colors">
+                                {feature.title}
+                            </h3>
+                            <p className="text-gray-500 text-xs font-medium">
+                                {feature.desc}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </main>
+    );
 }

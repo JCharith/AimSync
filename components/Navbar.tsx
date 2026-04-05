@@ -78,14 +78,6 @@ export default function Navbar() {
                                 Sign In
                             </Link>
                         )}
-
-                {/* Primary Action Button */}
-                <Link
-                    href="/game"
-                    className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/50 px-5 py-2 rounded-md text-sm font-bold uppercase tracking-wider hover:bg-emerald-500 hover:text-gray-950 transition-all duration-200 shadow-[0_0_15px_rgba(16,185,129,0.15)] hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]"
-                >
-                    Deploy
-                </Link>
             </div>
         </nav>
     );

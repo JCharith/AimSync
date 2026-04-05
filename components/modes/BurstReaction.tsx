@@ -14,6 +14,8 @@ import {
 import { createBurstTarget, getBurstSize } from "@/lib/utils/targetSpawning";
 import { buildGameResult } from "@/lib/utils/resultBuilder";
 import { updateStatsWithResult } from "@/lib/utils/statsService";
+import { draw3DBackground, draw3DTarget, ParticleEngine } from "@/lib/utils/gameRendering";
+
 import SessionHUD from "@/components/SessionHUD";
 import ResultsScreen from "@/components/ResultsScreen";
 
@@ -29,6 +31,7 @@ export default function BurstReaction({ overrideSettings, onFinish }: BurstReact
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const animationFrameRef = useRef<number | null>(null);
     const timeoutRef = useRef<number | null>(null);
+    const particleEngineRef = useRef<ParticleEngine>(new ParticleEngine());
 
     // BUG FIX: Track the active cluster session to prevent double-spawning next wave
     const clusterSessionId = useRef<number>(0);
@@ -55,6 +58,13 @@ export default function BurstReaction({ overrideSettings, onFinish }: BurstReact
     const [totalTargetsSpawned, setTotalTargetsSpawned] = useState(0);
     const [missedByTimeout, setMissedByTimeout] = useState(0);
     const [result, setResult] = useState<GameResult | null>(null);
+
+    const [ripples, setRipples] = useState<{ id: number, x: number, y: number }[]>([]);
+    const addRipple = useCallback((x: number, y: number) => {
+        const id = Date.now();
+        setRipples(p => [...p, { id, x, y }]);
+        setTimeout(() => setRipples(p => p.filter(r => r.id !== id)), 600);
+    }, []);
 
     const config = difficultyConfig[effectiveDifficulty];
     const accuracy = useMemo(() => calculateAccuracy(hits, misses), [hits, misses]);
@@ -97,6 +107,7 @@ export default function BurstReaction({ overrideSettings, onFinish }: BurstReact
             if (clusterSessionId.current === newSessionId) {
                 const remaining = targetsRef.current.length;
                 if (remaining > 0) {
+                    targetsRef.current.forEach(t => particleEngineRef.current.spawnExplosion(t.x, t.y, t.radius, false));
                     setMisses((p) => p + remaining);
                     setMissedByTimeout((p) => p + remaining);
                     setCombo(0);
@@ -115,6 +126,7 @@ export default function BurstReaction({ overrideSettings, onFinish }: BurstReact
         setGameStarted(false); setIsFinished(false); setTimeLeft(effectiveDuration); setCountdown(null);
         targetsRef.current = []; setCombo(0); setScore(0); setHits(0); setMisses(0);
         setReactionTimes([]); setTotalTargetsSpawned(0); setMissedByTimeout(0); setResult(null);
+        particleEngineRef.current.particles = [];
     };
 
     const startGame = async () => {
@@ -154,21 +166,11 @@ export default function BurstReaction({ overrideSettings, onFinish }: BurstReact
             const canvas = canvasRef.current;
             const ctx = canvas?.getContext("2d");
             if (canvas && ctx) {
-                ctx.clearRect(0, 0, dimensionsRef.current.width, dimensionsRef.current.height);
+                draw3DBackground(ctx, dimensionsRef.current.width, dimensionsRef.current.height);
                 for (const t of targetsRef.current) {
-                    const gradient = ctx.createRadialGradient(t.x - t.radius * 0.3, t.y - t.radius * 0.3, t.radius * 0.1, t.x, t.y, t.radius);
-                    gradient.addColorStop(0, "#FFFFFF");
-                    gradient.addColorStop(0.3, "#F97316");
-                    gradient.addColorStop(1, "#7C2D12");
-
-                    ctx.beginPath();
-                    ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
-                    ctx.fillStyle = gradient;
-                    ctx.shadowColor = "rgba(0,0,0,0.6)";
-                    ctx.shadowBlur = 25;
-                    ctx.shadowOffsetY = 20;
-                    ctx.fill();
+                    draw3DTarget(ctx, t.x, t.y, t.radius, "emerald", performance.now());
                 }
+                particleEngineRef.current.updateAndDraw(ctx);
             }
             animationFrameRef.current = requestAnimationFrame(tick);
         };
@@ -213,6 +215,7 @@ export default function BurstReaction({ overrideSettings, onFinish }: BurstReact
         if (!gameStarted || targetsRef.current.length === 0 || (countdown !== null && countdown > 0)) return;
 
         const canvas = canvasRef.current; if (!canvas) return;
+        addRipple(event.clientX, event.clientY);
         const { x, y } = getScaledCanvasCoordinates(event, canvas, dimensionsRef.current.width, dimensionsRef.current.height);
 
         let hitIndex = -1;
@@ -227,6 +230,7 @@ export default function BurstReaction({ overrideSettings, onFinish }: BurstReact
 
         if (hitIndex !== -1) {
             const hitTarget = targetsRef.current[hitIndex];
+            particleEngineRef.current.spawnExplosion(hitTarget.x, hitTarget.y, hitTarget.radius, true);
             const reaction = performance.now() - hitTarget.spawnedAt;
             const nextCombo = combo + 1;
 
@@ -274,8 +278,11 @@ export default function BurstReaction({ overrideSettings, onFinish }: BurstReact
                     <div className="relative z-30 shrink-0 w-full bg-[#050505]/90 border-b border-white/10 backdrop-blur-sm">
                         <SessionHUD data={{ mode: "True Burst", difficulty: difficultyLabels[difficulty], timeLeft, score, hits, misses, accuracy, averageReactionTime, bestReactionTime, extraLines: [{ label: "Multiplier", value: `${combo}x` }] }} />
                     </div>
-                    <div className="relative flex-1 w-full overflow-hidden bg-[#2f3b4c]">
+                    <div className="relative flex-1 w-full overflow-hidden bg-black">
                         <canvas ref={canvasRef} width={renderDimensions.width} height={renderDimensions.height} onMouseDown={handleCanvasMouseDown} className="absolute inset-0 block cursor-crosshair" />
+                        {ripples.map(r => (
+                            <div key={r.id} className="fixed w-16 h-16 border-2 border-[#10B981] rounded-full animate-ping pointer-events-none z-50 origin-center" style={{ left: r.x - 32, top: r.y - 32 }} />
+                        ))}
                         {countdown !== null && countdown > 0 && (
                             <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
                                 <span key={countdown} className="text-[12rem] font-black text-orange-400 animate-ping drop-shadow-[0_0_60px_#F97316]">{countdown}</span>

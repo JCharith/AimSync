@@ -8,6 +8,8 @@ import { calculateAccuracy, calculateAverageReactionTime, calculateBestReactionT
 import { createTargetSwitchWave } from "@/lib/utils/targetSpawning";
 import { buildGameResult } from "@/lib/utils/resultBuilder";
 import { updateStatsWithResult } from "@/lib/utils/statsService";
+import { draw3DBackground, draw3DTarget, ParticleEngine } from "@/lib/utils/gameRendering";
+
 import SessionHUD from "@/components/SessionHUD";
 import ResultsScreen from "@/components/ResultsScreen";
 
@@ -19,6 +21,8 @@ export default function TargetSwitch({ overrideSettings, onFinish }: TargetSwitc
     const containerRef = useRef<HTMLDivElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const timeoutRef = useRef<number | null>(null);
+    const animationFrameRef = useRef<number | null>(null);
+    const particleEngineRef = useRef<ParticleEngine>(new ParticleEngine());
 
     // BUG FIX: Atomic Wave ID tracking to prevent double-spawns
     const activeWaveId = useRef<number>(0);
@@ -45,6 +49,13 @@ export default function TargetSwitch({ overrideSettings, onFinish }: TargetSwitc
     const [missedByTimeout, setMissedByTimeout] = useState(0);
     const [result, setResult] = useState<GameResult | null>(null);
 
+    const [ripples, setRipples] = useState<{ id: number, x: number, y: number }[]>([]);
+    const addRipple = useCallback((x: number, y: number) => {
+        const id = Date.now();
+        setRipples(p => [...p, { id, x, y }]);
+        setTimeout(() => setRipples(p => p.filter(r => r.id !== id)), 600);
+    }, []);
+
     const config = difficultyConfig[effectiveDifficulty];
     const accuracy = useMemo(() => calculateAccuracy(hits, misses), [hits, misses]);
 
@@ -69,6 +80,9 @@ export default function TargetSwitch({ overrideSettings, onFinish }: TargetSwitc
 
         timeoutRef.current = window.setTimeout(() => {
             if (activeWaveId.current === newWaveId) {
+                if (targets.length > 0) {
+                    targets.forEach(t => particleEngineRef.current.spawnExplosion(t.x, t.y, t.radius, false));
+                }
                 setMisses((prev) => prev + 1);
                 setMissedByTimeout((prev) => prev + 1);
                 setScore((prev) => Math.max(0, prev - config.missPenalty));
@@ -79,21 +93,25 @@ export default function TargetSwitch({ overrideSettings, onFinish }: TargetSwitc
 
     const resetState = () => {
         clearWaveTimeout();
+        if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
         activeWaveId.current = 0;
         setGameStarted(false); setIsFinished(false); setTimeLeft(effectiveDuration); setCountdown(null);
         setTargets([]); setScore(0); setHits(0); setMisses(0); setReactionTimes([]);
         setTotalTargetsSpawned(0); setMissedByTimeout(0); setResult(null);
+        particleEngineRef.current.particles = [];
     };
 
     const startGame = async () => {
         resetState();
         setGameStarted(true);
         if (containerRef.current && !document.fullscreenElement) await containerRef.current.requestFullscreen().catch(() => { });
+        startRenderLoop();
         setCountdown(3);
     };
 
     const endSession = async () => {
         clearWaveTimeout();
+        if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
         activeWaveId.current = 0;
         setGameStarted(false);
         setTargets([]);
@@ -139,30 +157,33 @@ export default function TargetSwitch({ overrideSettings, onFinish }: TargetSwitc
         if (gameStarted && timeLeft === 0 && !isFinished) endSession();
     }, [timeLeft, gameStarted, isFinished, endSession]);
 
-    useEffect(() => {
-        const canvas = canvasRef.current; if (!canvas) return;
-        const ctx = canvas.getContext("2d"); if (!ctx) return;
-        ctx.clearRect(0, 0, dimensionsRef.current.width, dimensionsRef.current.height);
-        for (const t of targets) {
-            const gradient = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, t.radius);
-            if (t.isCorrect) {
-                gradient.addColorStop(0, "#FFFFFF");
-                gradient.addColorStop(0.3, "#10B981");
-                gradient.addColorStop(1, "#064E3B");
-            } else {
-                gradient.addColorStop(0, "#FFAAAA");
-                gradient.addColorStop(0.3, "#EF4444");
-                gradient.addColorStop(1, "#660000");
+    const startRenderLoop = () => {
+        if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
+
+        const tick = () => {
+            const canvas = canvasRef.current;
+            const ctx = canvas?.getContext("2d");
+            if (canvas && ctx) {
+                draw3DBackground(ctx, dimensionsRef.current.width, dimensionsRef.current.height);
+                for (const t of targets) {
+                    if (t.waveId === activeWaveId.current) {
+                        draw3DTarget(ctx, t.x, t.y, t.radius, t.isCorrect ? "emerald" : "red", performance.now());
+                    }
+                }
+                particleEngineRef.current.updateAndDraw(ctx);
             }
-            ctx.beginPath(); ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2); ctx.fillStyle = gradient;
-            ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 20; ctx.fill();
-        }
-    }, [targets, renderDimensions]);
+            animationFrameRef.current = requestAnimationFrame(tick);
+        };
+        animationFrameRef.current = requestAnimationFrame(tick);
+    };
 
     const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement, MouseEvent>) => {
         if (!gameStarted || (countdown !== null && countdown > 0)) return;
 
         const canvas = canvasRef.current; if (!canvas) return;
+        
+        addRipple(event.clientX, event.clientY);
+        
         const { x, y } = getScaledCanvasCoordinates(event, canvas, dimensionsRef.current.width, dimensionsRef.current.height);
 
         let clicked = null;
@@ -183,6 +204,7 @@ export default function TargetSwitch({ overrideSettings, onFinish }: TargetSwitc
         }
 
         if (clicked.isCorrect) {
+            particleEngineRef.current.spawnExplosion(clicked.x, clicked.y, clicked.radius, true);
             activeWaveId.current = 0; // Lock wave immediately
             const reaction = performance.now() - clicked.spawnedAt;
             setHits((p) => p + 1);
@@ -190,6 +212,9 @@ export default function TargetSwitch({ overrideSettings, onFinish }: TargetSwitc
             setReactionTimes((p) => [...p, reaction]);
             spawnWave();
         } else {
+            // Shatter immediately and remove the target from the array
+            particleEngineRef.current.spawnExplosion(clicked.x, clicked.y, clicked.radius, false);
+            setTargets((prev) => prev.filter((t) => t.id !== clicked!.id));
             setMisses((p) => p + 1);
             setScore((p) => Math.max(0, p - config.missPenalty));
         }
@@ -214,8 +239,11 @@ export default function TargetSwitch({ overrideSettings, onFinish }: TargetSwitc
                     <div className="relative z-30 shrink-0 w-full bg-[#050505]/90 border-b border-white/10 backdrop-blur-sm">
                         <SessionHUD data={{ mode: "Target Switch", difficulty: difficultyLabels[difficulty], timeLeft, score, hits, misses, accuracy: calculateAccuracy(hits, misses), averageReactionTime: calculateAverageReactionTime(reactionTimes), bestReactionTime: calculateBestReactionTime(reactionTimes), extraLines: [{ label: "Timeouts", value: missedByTimeout }] }} />
                     </div>
-                    <div className="relative flex-1 w-full overflow-hidden bg-[#2f3b4c]">
+                    <div className="relative flex-1 w-full overflow-hidden bg-black">
                         <canvas ref={canvasRef} width={renderDimensions.width} height={renderDimensions.height} onClick={handleCanvasClick} className="absolute inset-0 block cursor-crosshair" />
+                        {ripples.map(r => (
+                            <div key={r.id} className="fixed w-16 h-16 border-2 border-[#10B981] rounded-full animate-ping pointer-events-none z-50 origin-center" style={{ left: r.x - 32, top: r.y - 32 }} />
+                        ))}
                         {countdown !== null && (
                             <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
                                 <span className="text-[12rem] font-black text-emerald-400 animate-ping">{countdown}</span>

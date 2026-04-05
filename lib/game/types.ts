@@ -23,6 +23,7 @@ export interface SwitchTarget extends BaseTarget {
 export interface GameResult {
     id: string; // UUID
     modeId: string; // e.g., "micro-adjust", "static-flick"
+    userName?: string; // Optional user display name
     difficulty: Difficulty;
     score: number;
     hits: number;

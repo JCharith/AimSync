@@ -13,18 +13,40 @@ const createTargetId = (): string => {
     return `target-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 };
 
-// 1. The Updated Full-Canvas Spawner with Vertical Safe Zones
-// Top 15% is reserved for the HUD and browser fullscreen bar.
-// Bottom 5% is excluded for visual balance.
+// The Updated Full-Canvas Spawner with Micro-Zone Bias
 export const getRandomTargetPosition = (canvasWidth: number, canvasHeight: number, radius: number): Position => {
-    const paddingX = radius + 12;
-    const topSafeZone = canvasHeight * 0.15;
-    const bottomSafeZone = canvasHeight * 0.05;
+    const isMicroZone = Math.random() < 0.55;
 
-    const x = Math.random() * (canvasWidth - paddingX * 2) + paddingX;
-    const yMin = topSafeZone + radius;
-    const yMax = canvasHeight - bottomSafeZone - radius;
+    let xMin, xMax, yMin, yMax;
+
+    if (isMicroZone) {
+        // User Requested Micro Zone: W * 0.104, H * 0.148, centered
+        const microWidth = canvasWidth * 0.104;
+        const microHeight = canvasHeight * 0.148;
+        xMin = (canvasWidth / 2) - (microWidth / 2);
+        xMax = (canvasWidth / 2) + (microWidth / 2);
+        yMin = (canvasHeight / 2) - (microHeight / 2);
+        yMax = (canvasHeight / 2) + (microHeight / 2);
+    } else {
+        // Standard safe zone for remaining ~45% of targets
+        const paddingX = radius + 12;
+        const topSafeZone = canvasHeight * 0.15;
+        const bottomSafeZone = canvasHeight * 0.05;
+        xMin = paddingX;
+        xMax = canvasWidth - paddingX;
+        yMin = topSafeZone + radius;
+        yMax = canvasHeight - bottomSafeZone - radius;
+    }
+
+    // Clamp absolute extremes to radius to prevent half-clipping targets
+    xMin = Math.max(xMin, radius);
+    xMax = Math.min(xMax, canvasWidth - radius);
+    yMin = Math.max(yMin, radius);
+    yMax = Math.min(yMax, canvasHeight - radius);
+
+    const x = Math.random() * (xMax - xMin) + xMin;
     const y = Math.random() * (yMax - yMin) + yMin;
+    
     return { x, y };
 };
 
