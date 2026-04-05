@@ -2,8 +2,6 @@
 
 AimSync is a professional-grade, browser-native aim training platform designed to push human reaction time and fine motor control. Built for FPS enthusiasts who want a low-latency training environment without the overhead of heavy desktop applications.
 
-![Precision Mechanics](public/favicon.ico) <!-- Placeholder for a real logo if you have one, or just the favicon -->
-
 ## 🚀 Key Features
 
 - **Browser Native Execution**: Zero installation required. Instant access to training from any modern browser.
