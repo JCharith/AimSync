@@ -106,7 +106,7 @@ function DashboardHeader() {
                 <Link href={isTrial ? "#" : "/dashboard/profile"} className="flex items-center gap-3 group">
                     <div className="flex flex-col items-end hidden md:flex">
                         <span className="text-xs font-black text-white tracking-widest leading-none mb-1 group-hover:text-red transition-colors">
-                            {isTrial ? "Trial Agent" : (user?.username || "Agent_01")}
+                            {isTrial ? "Agent_T" : (user?.username || "Agent_01")}
                         </span>
                         <span className="text-[10px] text-red font-bold uppercase tracking-widest leading-none">Global Rank: {rankInfo.tier}</span>
                     </div>

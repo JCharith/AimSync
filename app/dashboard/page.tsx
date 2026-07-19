@@ -57,7 +57,7 @@ export default function DashboardPage() {
     const [sandboxSelections, setSandboxSelections] = useState<Record<string, { difficulty: string; duration: number }>>({});
 
     const getSandboxSelection = (modeId: string) => {
-        return sandboxSelections[modeId] || { difficulty: 'bonus', duration: 60 };
+        return sandboxSelections[modeId] || { difficulty: 'bonus', duration: isTrial ? 30 : 60 };
     };
 
     const updateSandboxSelection = (modeId: string, key: 'difficulty' | 'duration', value: any) => {
@@ -238,14 +238,18 @@ export default function DashboardPage() {
     ];
 
     const trainingProtocols = useMemo(() => {
-        return baseModes.map(base => ({
+        const filteredModes = isTrial
+            ? baseModes.filter(m => m.mode === 'static-flick' || m.mode === 'micro-adjust')
+            : baseModes;
+
+        return filteredModes.map(base => ({
             ...base,
             highScore: stats?.modes?.[base.mode]?.highScore || 0,
             avgAcc: stats?.modes?.[base.mode]?.averageAccuracy || 0,
             gamesPlayed: stats?.modes?.[base.mode]?.gamesPlayed || 0,
             timePlayedSeconds: stats?.modes?.[base.mode]?.timePlayedSeconds || 0,
         }));
-    }, [stats]);
+    }, [stats, isTrial]);
 
     // XP Factor bar helper (normalise to 0–100 relative to the highest factor)
     const xpFactorBars = (() => {
@@ -392,7 +396,7 @@ export default function DashboardPage() {
                                 )}
                             </div>
                         </div>
-                        <h2 className="text-xl font-black tracking-widest text-white mb-1">{isTrial ? "Trial Agent" : (user?.username || "Agent_01")}</h2>
+                        <h2 className="text-xl font-black tracking-widest text-white mb-1">{isTrial ? "Agent_T" : (user?.username || "Agent_01")}</h2>
                         <p className={`text-xs font-bold uppercase tracking-[0.2em] ${rankInfo.color} mb-6`}>{isTrial ? "Guest Protocol" : rankInfo.tier}</p>
 
                         {/* --- XP BAR --- */}
@@ -452,31 +456,55 @@ export default function DashboardPage() {
                             Training Arena
                         </button>
                         <button
-                            onClick={() => setActiveTab("heatmap")}
+                            onClick={() => !isTrial && setActiveTab("heatmap")}
                             className={`px-5 py-2.5 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${
                                 activeTab === "heatmap"
                                     ? "border-cyan-400 text-white shadow-[0_4px_12px_rgba(34,211,238,0.15)]"
                                     : "border-transparent text-slate-500 hover:text-slate-300"
-                            }`}
+                            } ${isTrial ? "opacity-40 cursor-not-allowed" : ""}`}
+                            title={isTrial ? "Register a full account to unlock Heatmap diagnostics" : ""}
                         >
-                            Muscle Memory Heatmap
+                            Muscle Memory Heatmap {isTrial && "🔒"}
                         </button>
                         <button
-                            onClick={() => setActiveTab("pro-playlists")}
+                            onClick={() => !isTrial && setActiveTab("pro-playlists")}
                             className={`px-5 py-2.5 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${
                                 activeTab === "pro-playlists"
                                     ? "border-[#3366FF] text-white shadow-[0_4px_12px_rgba(51,102,255,0.15)]"
                                     : "border-transparent text-slate-500 hover:text-slate-300"
-                            }`}
+                            } ${isTrial ? "opacity-40 cursor-not-allowed" : ""}`}
+                            title={isTrial ? "Register a full account to unlock Pro playlists" : ""}
                         >
-                            Pro Marketplace
+                            Pro Marketplace {isTrial && "🔒"}
                         </button>
                     </div>
 
                     {activeTab === "training" ? (
-                        <>
+                        <div className="flex flex-col gap-6">
+                            {/* TRIAL BANNER */}
+                            {isTrial && (
+                                <div style={{ order: 0 }} className="bg-red-500/10 border border-red-500/30 p-5 rounded-xl backdrop-blur-md relative overflow-hidden shadow-[0_0_20px_rgba(239,68,68,0.1)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div className="flex items-start gap-4">
+                                        <div className="p-3 bg-red-500/20 rounded-lg text-red border border-red-500/30 shrink-0">
+                                            <svg className="w-6 h-6 text-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                            </svg>
+                                        </div>
+                                        <div className="text-left">
+                                            <h2 className="text-white font-black text-sm uppercase tracking-wider">Restricted Guest Protocol</h2>
+                                            <p className="text-slate-400 text-xs mt-0.5">You are currently logged in as a trial agent (Agent_T). You have access to the Trial Sandbox only. Create a full account to unlock advanced training operations, pro regimens, and heatmap diagnostics.</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => router.push('/auth/register')}
+                                        className="px-6 py-2.5 bg-red hover:bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded transition-all shadow-[0_0_15px_rgba(239,68,68,0.4)] whitespace-nowrap pointer-events-auto"
+                                    >
+                                        Create Full Account
+                                    </button>
+                                </div>
+                            )}
                             {/* SENSITIVITY FINDER DIAGNOSTIC PROTOCOL */}
-                    <div className="bg-[#120b1e]/85 border border-purple-500/20 p-6 rounded-xl backdrop-blur-md relative overflow-hidden shadow-[0_0_30px_rgba(168,85,247,0.1)] mb-6">
+                    <div style={{ order: isTrial ? 2 : 1 }} className="bg-[#120b1e]/85 border border-purple-500/20 p-6 rounded-xl backdrop-blur-md relative overflow-hidden shadow-[0_0_30px_rgba(168,85,247,0.1)]">
                         {/* Glowing accent border */}
                         <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-purple-500 via-violet-400 to-transparent" />
                         <div className="absolute -top-24 -right-24 w-64 h-64 bg-purple-500/10 rounded-full blur-[80px] pointer-events-none" />
@@ -507,9 +535,19 @@ export default function DashboardPage() {
                     </div>
 
                     {/* BOX 1: ACTIVE OPERATIONS */}
-                    <div className="bg-surface/60 border border-white/10 p-6 rounded-xl backdrop-blur-md relative overflow-hidden">
+                    <div style={{ order: isTrial ? 3 : 2 }} className="bg-surface/60 border border-white/10 p-6 rounded-xl backdrop-blur-md relative overflow-hidden">
                         {/* Background glow effect for the panel */}
                         <div className="absolute -top-24 -right-24 w-64 h-64 bg-blue-500/10 rounded-full blur-[80px] pointer-events-none" />
+
+                        {isTrial && (
+                            <div className="absolute inset-0 bg-black/75 backdrop-blur-[6px] z-30 flex flex-col items-center justify-center p-6 text-center select-none">
+                                <span className="text-red font-black text-lg tracking-[0.25em] mb-2 uppercase">Operation Locked</span>
+                                <p className="text-slate-400 text-[11px] max-w-xs mb-4">Register a full Agent account to access daily contracts and weekly operations.</p>
+                                <button onClick={() => router.push('/auth/register')} className="px-6 py-2.5 bg-red hover:bg-red-600 text-white font-black text-[10px] uppercase tracking-widest rounded transition-colors shadow-[0_0_15px_rgba(239,68,68,0.3)] pointer-events-auto">
+                                    Initialize Registry
+                                </button>
+                            </div>
+                        )}
 
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4 relative z-10">
                             <div><h2 className="text-white font-black text-lg uppercase tracking-widest">Active Operations</h2><p className="text-slate-400 text-sm">Time-sensitive training contracts</p></div>
@@ -605,7 +643,16 @@ export default function DashboardPage() {
                     </div>
 
                     {/* BOX 1.5: CUSTOM REGIMENS (PLAYLISTS) */}
-                    <div className="bg-surface/60 border border-white/10 p-6 rounded-xl backdrop-blur-md">
+                    <div style={{ order: isTrial ? 4 : 3 }} className="bg-surface/60 border border-white/10 p-6 rounded-xl backdrop-blur-md relative overflow-hidden">
+                        {isTrial && (
+                            <div className="absolute inset-0 bg-black/75 backdrop-blur-[6px] z-30 flex flex-col items-center justify-center p-6 text-center select-none">
+                                <span className="text-red font-black text-lg tracking-[0.25em] mb-2 uppercase">Regimens Locked</span>
+                                <p className="text-slate-400 text-[11px] max-w-xs mb-4">Register a full Agent account to build custom training regimens and warmup playlists.</p>
+                                <button onClick={() => router.push('/auth/register')} className="px-6 py-2.5 bg-red hover:bg-red-600 text-white font-black text-[10px] uppercase tracking-widest rounded transition-colors shadow-[0_0_15px_rgba(239,68,68,0.3)] pointer-events-auto">
+                                    Initialize Registry
+                                </button>
+                            </div>
+                        )}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                             <div>
                                 <h2 className="text-white font-black text-lg uppercase tracking-widest">Custom Regimens</h2>
@@ -665,7 +712,7 @@ export default function DashboardPage() {
                     </div>
 
                     {/* BOX 2: TASK REPOSITORY (Sandbox) */}
-                    <div className="bg-surface/60 border border-white/10 p-6 rounded-xl backdrop-blur-md">
+                    <div style={{ order: isTrial ? 1 : 4 }} className="bg-surface/60 border border-white/10 p-6 rounded-xl backdrop-blur-md relative overflow-hidden">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                             <div><h2 className="text-white font-black text-lg uppercase tracking-widest">Task Repository</h2><p className="text-slate-400 text-sm">Open training sandbox (No time limits)</p></div>
                         </div>
@@ -718,7 +765,7 @@ export default function DashboardPage() {
                                                 onChange={(e) => updateSandboxSelection(protocol.mode, 'difficulty', e.target.value)}
                                                 className="w-full bg-black/60 border border-white/10 hover:border-white/20 text-[10px] font-bold text-slate-300 rounded-md px-2 py-1.5 cursor-pointer focus:outline-none focus:border-[#3366FF] transition-all text-center"
                                             >
-                                                {DIFFICULTIES.map(opt => (
+                                                {(isTrial ? DIFFICULTIES.filter(opt => opt.value === 'bonus') : DIFFICULTIES).map(opt => (
                                                     <option key={opt.value} value={opt.value}>
                                                         {opt.label}
                                                     </option>
@@ -731,7 +778,7 @@ export default function DashboardPage() {
                                                 onChange={(e) => updateSandboxSelection(protocol.mode, 'duration', Number(e.target.value))}
                                                 className="w-full bg-black/60 border border-white/10 hover:border-white/20 text-[10px] font-bold text-slate-300 rounded-md px-2 py-1.5 cursor-pointer focus:outline-none focus:border-[#3366FF] transition-all text-center"
                                             >
-                                                {DURATIONS.map(opt => (
+                                                {(isTrial ? DURATIONS.filter(opt => opt.value === 30) : DURATIONS).map(opt => (
                                                     <option key={opt.value} value={opt.value}>
                                                         {opt.label}
                                                     </option>
@@ -755,7 +802,7 @@ export default function DashboardPage() {
                             })}
                         </div>
                     </div>
-                        </>
+                        </div>
                     ) : activeTab === "heatmap" ? (
                         <MuscleMemoryHeatmap safeStats={safeStats} />
                     ) : (

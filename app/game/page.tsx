@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useAuth } from "@/lib/contexts/AuthContext";
 
 
 
@@ -133,18 +134,26 @@ function resolveModeKey(modeId: string | null): Exclude<Mode, "menu"> | null {
 function GameEngine() {
     const searchParams = useSearchParams();
     const router = useRouter();
+    const { isTrial } = useAuth();
     const modeParam = searchParams.get("mode");
     const diffParam = searchParams.get("diff");
     const timeParam = searchParams.get("time");
     const playlistParam = searchParams.get("playlist");
 
-    const currentMode = resolveModeKey(modeParam);
+    let currentMode = resolveModeKey(modeParam);
 
-    // Resolve playlist if parameter exists
+    // Apply strict trial mode limits
+    if (isTrial) {
+        if (currentMode !== "static-flick" && currentMode !== "micro-adjust") {
+            currentMode = "static-flick";
+        }
+    }
+
+    // Resolve playlist if parameter exists (block for trial users)
     const proPlaylist = React.useMemo(() => {
-        if (!playlistParam) return null;
+        if (isTrial || !playlistParam) return null;
         return proPlaylists.find((p) => p.id === playlistParam) || null;
-    }, [playlistParam]);
+    }, [playlistParam, isTrial]);
 
     const compiledRoutine = React.useMemo(() => {
         if (!proPlaylist) return null;
@@ -174,6 +183,13 @@ function GameEngine() {
     }, [proPlaylist]);
 
     const overrideSettings = React.useMemo(() => {
+        if (isTrial) {
+            return {
+                difficulty: 'medium' as Difficulty, // 'bonus' maps to 'medium' in config
+                duration: 30
+            };
+        }
+
         if (!diffParam && !timeParam) return undefined;
         const diffMap: Record<string, Difficulty> = {
             'eco': 'easy',
@@ -189,7 +205,7 @@ function GameEngine() {
             difficulty: diffMap[diffParam?.toLowerCase() || ''] || 'medium',
             duration: Number(timeParam) > 0 ? Number(timeParam) : 30
         };
-    }, [diffParam, timeParam]);
+    }, [diffParam, timeParam, isTrial]);
 
     const handleModeFinish = () => {
         if (document.fullscreenElement) {

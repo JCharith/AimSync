@@ -40,6 +40,14 @@ export default function StaticFlick({ overrideSettings, onFinish }: StaticFlickP
         onSessionComplete: onFinish,
     });
 
+    // Force bonus difficulty and 30s duration for trial users
+    useEffect(() => {
+        if (isTrial) {
+            setDifficulty("medium");
+            engine.setDuration(30);
+        }
+    }, [isTrial, engine]);
+
     // ── Kinematics Tracker ──────────────────────────────────────────────────
     const kinematics = useKinematicsTracker();
     // Rolling session accumulators (refs — never trigger re-renders)
@@ -316,8 +324,8 @@ export default function StaticFlick({ overrideSettings, onFinish }: StaticFlickP
                                             <span className="text-gray-400 text-xs font-bold tracking-wider mb-2">DIFFICULTY</span>
                                             <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as Difficulty)} className="bg-black/80 border border-white/20 p-4 rounded-xl text-white focus:border-[#3366FF] outline-none transition-all cursor-pointer">
                                                 {Object.entries(difficultyLabels).map(([key, label]) => (
-                                                    <option key={key} value={key} disabled={isTrial && key !== "eco" && key !== "bonus"}>
-                                                        {label.toUpperCase()}{isTrial && key !== "eco" && key !== "bonus" ? " 🔒" : ""}
+                                                    <option key={key} value={key} disabled={isTrial && key !== "medium"}>
+                                                        {label.toUpperCase()}{isTrial && key !== "medium" ? " 🔒" : ""}
                                                      </option>
                                                 ))}
                                             </select>
@@ -327,7 +335,7 @@ export default function StaticFlick({ overrideSettings, onFinish }: StaticFlickP
                                             <select value={engine.duration} onChange={(e) => engine.setDuration(Number(e.target.value))} className="bg-black/80 border border-white/20 p-4 rounded-xl text-white focus:border-[#3366FF] outline-none transition-all cursor-pointer">
                                                 <option value={15} disabled={isTrial}>15s (Warmup){isTrial ? " 🔒" : ""}</option>
                                                 <option value={30}>30s (Standard)</option>
-                                                <option value={45}>45s (Extended)</option>
+                                                <option value={45} disabled={isTrial}>45s (Extended){isTrial ? " 🔒" : ""}</option>
                                                 <option value={60} disabled={isTrial}>60s (Endurance){isTrial ? " 🔒" : ""}</option>
                                             </select>
                                         </label>
