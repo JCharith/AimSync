@@ -437,6 +437,16 @@ export default function FlashcardPeeking() {
         });
     }
 
+    function getCanvasCoords(e: React.MouseEvent<HTMLCanvasElement>) {
+        const canvas = canvasRef.current;
+        if (!canvas) return { x: 400, y: 250 };
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: (e.clientX - rect.left) * (canvas.width / rect.width),
+            y: (e.clientY - rect.top) * (canvas.height / rect.height),
+        };
+    }
+
     const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
         if (!isActive) {
             startDrill();
@@ -446,9 +456,9 @@ export default function FlashcardPeeking() {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const rect = canvas.getBoundingClientRect();
-        const clickX = e.clientX - rect.left;
-        const clickY = e.clientY - rect.top;
+        const coords = getCanvasCoords(e);
+        const clickX = coords.x;
+        const clickY = coords.y;
 
         playSound('GUNSHOT');
         setTotalShots((prev) => prev + 1);
@@ -498,13 +508,7 @@ export default function FlashcardPeeking() {
     };
 
     const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-        const rect = canvasRef.current?.getBoundingClientRect();
-        if (rect) {
-            mousePosRef.current = {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top,
-            };
-        }
+        mousePosRef.current = getCanvasCoords(e);
     };
 
     useEffect(() => {

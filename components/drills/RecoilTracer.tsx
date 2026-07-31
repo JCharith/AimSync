@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useWeaponStore } from '@/store/weaponStore';
-import { WeaponStats } from '@/lib/utils/AssetManager';
 
 // Preset weapon profiles if weaponStore is not populated
 const WEAPON_PRESETS: Record<string, { name: string; fireRate: number; magSize: number; climbHeight: number; swayWidth: number }> = {
@@ -34,6 +33,7 @@ export default function RecoilTracer() {
 
     // Gameplay states
     const [isFiring, setIsFiring] = useState(false);
+    const isFiringRef = useRef(false);
     const [accuracy, setAccuracy] = useState<number>(100);
     const [averageAccuracy, setAverageAccuracy] = useState<number | null>(null);
     const [highScore, setHighScore] = useState<number>(0);
@@ -48,6 +48,11 @@ export default function RecoilTracer() {
     const currentTracerPosRef = useRef<{ x: number; y: number }>({ x: 400, y: 450 });
     const accuracySumRef = useRef<number>(0);
     const accuracyTicksRef = useRef<number>(0);
+
+    // Keep ref synchronized with state
+    useEffect(() => {
+        isFiringRef.current = isFiring;
+    }, [isFiring]);
 
     // Generates a T-shape recoil pattern array based on weapon stats
     const generateTShapePattern = useCallback((weapon: { fireRate: number; magSize: number; climbHeight?: number; swayWidth?: number }) => {
@@ -238,7 +243,7 @@ export default function RecoilTracer() {
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
-        if (!ctx || !isFiring) return;
+        if (!ctx || !isFiringRef.current) return;
 
         const pattern = sprayPatternRef.current;
         if (pattern.length === 0) return;
@@ -332,10 +337,21 @@ export default function RecoilTracer() {
         }
     }, [currentWeaponStats]);
 
+    function getCanvasCoords(e: React.MouseEvent<HTMLCanvasElement>) {
+        const canvas = canvasRef.current;
+        if (!canvas) return { x: 400, y: 450 };
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: (e.clientX - rect.left) * (canvas.width / rect.width),
+            y: (e.clientY - rect.top) * (canvas.height / rect.height),
+        };
+    }
+
     function handleStartFiring(e: React.MouseEvent<HTMLCanvasElement>) {
-        if (e.button !== 0 || isFiring) return;
+        if (e.button !== 0 || isFiringRef.current) return;
 
         setIsFiring(true);
+        isFiringRef.current = true;
         setAccuracy(100);
         setBulletsFired(1);
         bulletIndexRef.current = 0;
@@ -343,24 +359,18 @@ export default function RecoilTracer() {
         accuracySumRef.current = 0;
         accuracyTicksRef.current = 0;
 
-        const rect = canvasRef.current?.getBoundingClientRect();
-        if (rect) {
-            mousePosRef.current = {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top,
-            };
-        }
-
+        mousePosRef.current = getCanvasCoords(e);
         animationFrameId.current = requestAnimationFrame(updateLoop);
     }
 
     function handleStopFiring() {
-        if (!isFiring) return;
+        if (!isFiringRef.current) return;
         handleStopExecution();
     }
 
     function handleStopExecution() {
         setIsFiring(false);
+        isFiringRef.current = false;
         cancelAnimationFrame(animationFrameId.current);
 
         if (accuracyTicksRef.current > 0) {
@@ -383,14 +393,19 @@ export default function RecoilTracer() {
     }
 
     function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
-        const rect = canvasRef.current?.getBoundingClientRect();
-        if (rect) {
-            mousePosRef.current = {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top,
-            };
-        }
+        mousePosRef.current = getCanvasCoords(e);
     }
+
+    // Global mouseup listener so firing stops if mouse is released anywhere on screen
+    useEffect(() => {
+        const handleGlobalMouseUp = () => {
+            if (isFiringRef.current) {
+                handleStopExecution();
+            }
+        };
+        window.addEventListener('mouseup', handleGlobalMouseUp);
+        return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+    }, []);
 
     useEffect(() => {
         return () => {
@@ -456,7 +471,6 @@ export default function RecoilTracer() {
                     height={500}
                     onMouseDown={handleStartFiring}
                     onMouseUp={handleStopFiring}
-                    onMouseLeave={handleStopFiring}
                     onMouseMove={handleMouseMove}
                     className="block"
                 />
@@ -486,3 +500,4 @@ export default function RecoilTracer() {
         </div>
     );
 }
+

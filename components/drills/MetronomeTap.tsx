@@ -390,6 +390,16 @@ export default function MetronomeTap() {
         }, 50);
     }
 
+    function getCanvasCoords(e: React.MouseEvent<HTMLCanvasElement>) {
+        const canvas = canvasRef.current;
+        if (!canvas) return { x: 400, y: 250 };
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: (e.clientX - rect.left) * (canvas.width / rect.width),
+            y: (e.clientY - rect.top) * (canvas.height / rect.height),
+        };
+    }
+
     const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
         if (!isActive) {
             startDrill();
@@ -399,9 +409,9 @@ export default function MetronomeTap() {
         const canvas = canvasRef.current;
         if (!canvas || !audioCtxRef.current) return;
 
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
+        const coords = getCanvasCoords(e);
+        const mouseX = coords.x;
+        const mouseY = coords.y;
 
         const dist = Math.sqrt(Math.pow(mouseX - targetCenter.x, 2) + Math.pow(mouseY - targetCenter.y, 2));
         const clickAudioTime = audioCtxRef.current.currentTime;
@@ -492,13 +502,7 @@ export default function MetronomeTap() {
     };
 
     const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-        const rect = canvasRef.current?.getBoundingClientRect();
-        if (rect) {
-            mousePosRef.current = {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top,
-            };
-        }
+        mousePosRef.current = getCanvasCoords(e);
     };
 
     useEffect(() => {
