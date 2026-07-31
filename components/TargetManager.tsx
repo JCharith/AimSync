@@ -14,7 +14,7 @@ interface TargetProps {
     spawnTime: number;
 }
 
-// ULTRA-LIGHTWEIGHT SPATIAL AUDIO CUE (Protocol 1)
+// ULTRA-LIGHTWEIGHT SPATIAL AUDIO CUE (Protocol 1: Echolocation)
 function PositionalSound({ position }: { position: [number, number, number] }) {
     const audioRef = useRef<THREE.PositionalAudio>(null);
     const { camera } = useThree();
@@ -23,7 +23,6 @@ function PositionalSound({ position }: { position: [number, number, number] }) {
         const sound = audioRef.current;
         if (!sound) return;
 
-        // Retrieve or initialize audio listener on the camera
         let listener = camera.children.find((c) => c instanceof THREE.AudioListener) as THREE.AudioListener;
         if (!listener) {
             listener = new THREE.AudioListener();
@@ -35,26 +34,26 @@ function PositionalSound({ position }: { position: [number, number, number] }) {
             ctx.resume();
         }
 
-        // Generate synthetic sharp audio cue on the fly
+        // Generate synthetic sharp audio pulse on the fly for 360 spatial cues
         const rate = ctx.sampleRate || 44100;
-        const duration = 0.15; // 150ms duration
+        const duration = 0.18; // 180ms pulse
         const buffer = ctx.createBuffer(1, rate * duration, rate);
         const data = buffer.getChannelData(0);
         for (let i = 0; i < data.length; i++) {
             const t = i / rate;
-            // High-density transient attack frequency sweep
-            data[i] = Math.sin(2 * Math.PI * 880 * Math.exp(-15 * t) * t) * Math.exp(-25 * t);
+            // High-density transient attack sweep + exponential decay
+            data[i] = Math.sin(2 * Math.PI * 950 * Math.exp(-18 * t) * t) * Math.exp(-22 * t);
         }
 
         sound.setBuffer(buffer);
-        sound.setRefDistance(5);
-        sound.setMaxDistance(50);
+        sound.setRefDistance(3);
+        sound.setMaxDistance(40);
         sound.play();
 
         return () => {
             if (sound.isPlaying) sound.stop();
         };
-    }, [camera]);
+    }, [camera, position]);
 
     const listener = camera.children.find((c) => c instanceof THREE.AudioListener) as THREE.AudioListener;
     if (!listener) return null;
@@ -62,32 +61,30 @@ function PositionalSound({ position }: { position: [number, number, number] }) {
     return <positionalAudio ref={audioRef} args={[listener]} position={position} />;
 }
 
-// 1. The Individual Target Component
+// Target Component
 function Target({ id, position, onHit, scale, isFriendly, activeMode, spawnTime }: TargetProps) {
-    // Protocol 2: Cognitive Overdrive colors (Red = Hostile, Blue = Friendly/Distractor)
-    // Echolocation: high visibility Gold
-    // Default: AimSync Signature Blue
+    // Protocol 2: Target Discrimination Color Signatures
+    // Hostile (Red), Friendly/Distractor (Blue), Echolocation (Gold)
     const getTargetColor = () => {
         if (activeMode === 'cognitive-overdrive') {
-            return isFriendly ? '#3366FF' : '#FF3333'; // Blue (Friendly), Red (Hostile)
+            return isFriendly ? '#3366FF' : '#FF3333';
         }
         if (activeMode === 'echolocation') {
             return '#FFD700'; // Gold
         }
-        return '#3366FF'; // Blue
+        return '#3366FF';
     };
 
     const targetColor = getTargetColor();
 
     return (
         <group>
-            {/* Low-poly mesh and basic unlit material to protect 144Hz framerate */}
             <mesh
                 position={position}
                 name="target"
                 userData={{ id, onHit, isFriendly, spawnTime }}
             >
-                <sphereGeometry args={[0.5 * scale, 8, 8]} />
+                <sphereGeometry args={[0.5 * scale, 12, 12]} />
                 <meshBasicMaterial color={targetColor} />
             </mesh>
             {activeMode === 'echolocation' && <PositionalSound position={position} />}
@@ -95,7 +92,7 @@ function Target({ id, position, onHit, scale, isFriendly, activeMode, spawnTime 
     );
 }
 
-// 2. The Spawner Logic
+// Spawner Manager
 export default function TargetManager({
     targetScale = 1,
     activeMode = 'static-flick',
@@ -113,25 +110,23 @@ export default function TargetManager({
     const maxOffsetX = viewport.width * 0.125;
     const maxOffsetY = viewport.height * 0.075;
 
-    // Spawning ring logic outside FOV (103 deg) at Z = 15m radius
+    // Spawning 360-degree ring logic outside FOV (103 deg) at Z = 15m radius for Echolocation
     const getRandomPosition = useCallback((): [number, number, number] => {
         if (activeMode === 'echolocation') {
             const cameraDir = new THREE.Vector3();
             camera.getWorldDirection(cameraDir);
-            const lookAngle = Math.atan2(cameraDir.x, cameraDir.z); // yaw angle
+            const lookAngle = Math.atan2(cameraDir.x, cameraDir.z);
 
-            // Spawning outside FOV:
-            // Half FOV is 51.5 degrees (~0.8988 rad)
-            // Remaining angle range is [51.5, 308.5] degrees (~[0.8988, 5.3844] rad)
+            // Outside FOV spawn range: [51.5 deg, 308.5 deg] offset
             const halfFov = (51.5 * Math.PI) / 180;
             const angleRange = Math.PI * 2 - halfFov * 2;
             const angleOffset = halfFov + Math.random() * angleRange;
             const finalAngle = lookAngle + angleOffset;
 
-            // Fixed distance of 15m
-            const x = Math.sin(finalAngle) * 15;
-            const z = Math.cos(finalAngle) * 15;
-            const y = (Math.random() - 0.5) * 2; // slight elevation variance, but close to eye level
+            const radius = 14 + Math.random() * 2;
+            const x = Math.sin(finalAngle) * radius;
+            const z = Math.cos(finalAngle) * radius;
+            const y = (Math.random() - 0.5) * 3;
             return [x, y, z];
         }
 
@@ -143,7 +138,6 @@ export default function TargetManager({
     const [targets, setTargets] = useState<{ id: number; pos: [number, number, number]; isFriendly: boolean; spawnTime: number }[]>([]);
 
     useEffect(() => {
-        // Initialize camera AudioListener immediately on mount to prevent positional audio race conditions
         let listener = camera.children.find((c) => c instanceof THREE.AudioListener);
         if (!listener) {
             camera.add(new THREE.AudioListener());
@@ -157,12 +151,6 @@ export default function TargetManager({
     }, [activeMode, getRandomPosition, camera]);
 
     const handleTargetHit = (id: number) => {
-        if (activeMode === 'echolocation') {
-            // Protocol 1: Rotate camera spin after hit
-            const spin = Math.random() > 0.5 ? Math.PI / 2 : Math.PI;
-            camera.rotation.y += spin;
-        }
-
         setTargets((current) =>
             current.map((t) =>
                 t.id === id
@@ -170,7 +158,7 @@ export default function TargetManager({
                           id: t.id,
                           pos: getRandomPosition(),
                           isFriendly: activeMode === 'cognitive-overdrive' ? Math.random() < 0.35 : false,
-                          spawnTime: performance.now()
+                          spawnTime: performance.now(),
                       }
                     : t
             )

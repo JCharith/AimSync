@@ -1,4 +1,16 @@
+name = "aimsync"
+main = "src/cron/weekly-progression.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "aimsync-db"
 database_id = "4c10d76d-d19f-4372-925a-565ad2d31912"
+
+[triggers]
+crons = ["0 23 * * 0"]
+
+[vars]
+GITHUB_REPO_OWNER = "LogicArchitectDS"
+GITHUB_REPO_NAME = "AimSync"

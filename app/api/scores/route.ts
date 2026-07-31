@@ -181,10 +181,15 @@ export async function POST(request: Request) {
     const inputVelocity = durationSeconds > 0 ? (totalTargets / durationSeconds) : 0;
     const isArithmeticProgression = checkArithmeticProgression(ghostTelemetry);
     const telemetryValidation = validateGhostTelemetry(ghostTelemetry);
+    const score = typeof body.score === 'number' ? body.score : (body.rawScoreData?.score ?? (hits * 10 + maxCombo * 5));
+
+    // Calculate multiplier anomaly ratio based on target velocity or abnormal score scaling
+    const anomalyRatioNumber = inputVelocity > 15 ? (inputVelocity / 15) : (totalTargets > 0 && score > totalTargets * 25 ? (score / (totalTargets * 10)) : 1.0);
+    const anomalyMultiplier = `${anomalyRatioNumber.toFixed(2)}x norm`;
     
     let isFlagged = 0;
     let flagReason: string | null = null;
-    
+
     if (durationSeconds < 5 || inputVelocity > 15) {
         isFlagged = 1;
         flagReason = 'Velocity/Duration Threshold Exceeded';
@@ -194,13 +199,15 @@ export async function POST(request: Request) {
     } else if (telemetryValidation.isSuspicious) {
         isFlagged = 1;
         flagReason = telemetryValidation.reason;
+    } else if (anomalyRatioNumber > 1.5) {
+        isFlagged = 1;
+        flagReason = `Abnormal Score Multiplier (${anomalyMultiplier})`;
     }
     
     let integrityFlag = 'HIGH_INTEGRITY';
     let xpEarned = 0;
     
     // XP Delta = Base Run Fee (100) + (Score / 10) * (Accuracy > 0.90 ? 1.5 : 1.0)
-    const score = typeof body.score === 'number' ? body.score : (body.rawScoreData?.score ?? (hits * 10 + maxCombo * 5));
     const accuracyMultiplier = accuracyFraction > 0.90 ? 1.5 : 1.0;
     const baseXp = 100 + (score / 10) * accuracyMultiplier;
 
@@ -208,29 +215,62 @@ export async function POST(request: Request) {
         integrityFlag = 'LOW_INTEGRITY';
         xpEarned = 0;
 
-        // Shoot non-blocking, fast alert fetch to n8n webhook
-        const n8nWebhookUrl = process.env.N8N_SECURITY_WEBHOOK_URL;
-        if (n8nWebhookUrl) {
-            const alertPromise = fetch(n8nWebhookUrl, {
+        // Fast, non-blocking alert fetch directly to Discord Admin Webhook
+        const discordAdminWebhookUrl = process.env.DISCORD_ADMIN_WEBHOOK_URL || (process.env as any).DISCORD_ADMIN_WEBHOOK_URL || process.env.N8N_SECURITY_WEBHOOK_URL;
+        if (discordAdminWebhookUrl) {
+            const hardwareProfile = body.hardwareProfile || body.hardware || 'Unknown Hardware ID';
+            const timestamp = new Date().toISOString();
+
+            const discordPayload = {
+                embeds: [
+                    {
+                        title: '🚨 AEGIS-SENTINEL: CHEATING ANOMALY DETECTED',
+                        description: 'An anomalous game state progression and timing pattern was intercepted by the AimSync Edge scores telemetry pipeline.',
+                        color: 15158332,
+                        fields: [
+                            {
+                                name: '👤 Player ID / Username',
+                                value: `\`${username}\` (ID: \`${userId}\`)`,
+                                inline: true
+                            },
+                            {
+                                name: '🎮 Captured Score & Drill',
+                                value: `**${score.toLocaleString()}** (Drill: \`${exerciseId}\`)`,
+                                inline: true
+                            },
+                            {
+                                name: '⚡ Score Multiplier Anomaly',
+                                value: `\`${anomalyMultiplier}\``,
+                                inline: true
+                            },
+                            {
+                                name: '🛡️ Detection Trigger',
+                                value: `\`${flagReason || 'Telemetry Anomaly'}\``
+                            },
+                            {
+                                name: '💻 Hardware Profile',
+                                value: `\`\`\`\n${hardwareProfile}\n\`\`\``
+                            },
+                            {
+                                name: '📊 Telemetry Diagnostics',
+                                value: `• **Accuracy:** ${accuracy.toFixed(2)}%\n• **Hits/Misses:** ${hits} Hits / ${misses} Misses\n• **Run Duration:** ${durationSeconds}s\n• **Target Velocity:** ${inputVelocity.toFixed(2)} targets/sec`
+                            }
+                        ],
+                        footer: {
+                            text: 'AimSync Aegis Security Guard • #admin-alerts'
+                        },
+                        timestamp
+                    }
+                ]
+            };
+
+            const alertPromise = fetch(discordAdminWebhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    username,
-                    score,
-                    is_flagged: 1,
-                    reason: flagReason,
-                    hardwareProfile: body.hardwareProfile || body.hardware || 'Unknown HWID',
-                    telemetrySummary: {
-                        hits,
-                        misses,
-                        accuracy: Number(accuracy.toFixed(2)),
-                        durationSeconds,
-                        inputVelocity: Number(inputVelocity.toFixed(2))
-                    }
-                })
-            }).catch(err => console.error('[Anti-Cheat Alert Webhook Error]:', err));
+                body: JSON.stringify(discordPayload)
+            }).catch(err => console.error('[Anti-Cheat Discord Webhook Error]:', err));
 
-            // Offload HTTP request so it doesn't block the score response
+            // Offload HTTP request so it doesn't block score response latency
             try {
                 import('@cloudflare/next-on-pages').then(({ getRequestContext }) => {
                     const ctxObj = getRequestContext().ctx;

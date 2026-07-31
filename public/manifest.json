@@ -1,0 +1,60 @@
+{
+  "name": "AimSync | Tactical FPS Aim Trainer",
+  "short_name": "AimSync",
+  "description": "High-performance, potato-PC optimized 2D & 3D tactical aim trainer with zero CPU strain.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08090c",
+  "theme_color": "#3366ff",
+  "orientation": "any",
+  "categories": ["games", "sports", "utilities"],
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/valorant-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/cs2-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Mission Control Dashboard",
+      "short_name": "Dashboard",
+      "description": "Access training metrics and weapon locker",
+      "url": "/dashboard",
+      "icons": [{ "src": "/favicon.ico", "sizes": "64x64" }]
+    },
+    {
+      "name": "2D Recoil Tracer Drill",
+      "short_name": "Recoil Tracer",
+      "description": "Train T-shape spray pattern compensation",
+      "url": "/game?mode=recoil-tracer",
+      "icons": [{ "src": "/favicon.ico", "sizes": "64x64" }]
+    },
+    {
+      "name": "Metronome Tap Drill",
+      "short_name": "Metronome Tap",
+      "description": "Practice weapon inaccuracy reset intervals",
+      "url": "/game?mode=metronome-tap",
+      "icons": [{ "src": "/favicon.ico", "sizes": "64x64" }]
+    },
+    {
+      "name": "2.5D Flashcard Peeking",
+      "short_name": "Flashcard Peeking",
+      "description": "Train Ascent A-Main pre-aim angles",
+      "url": "/game?mode=flashcard-peeking",
+      "icons": [{ "src": "/favicon.ico", "sizes": "64x64" }]
+    }
+  ]
+}

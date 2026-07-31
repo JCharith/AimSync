@@ -28,10 +28,45 @@ const DEFAULT_BASELINE: RadarDataPoint[] = [
 
 export default function RadarProfiler({ data, loading = false }: RadarProfilerProps) {
     const [isMounted, setIsMounted] = useState(false);
+    const [fetchedData, setFetchedData] = useState<RadarDataPoint[] | null>(null);
+    const [isLoading, setIsLoading] = useState<boolean>(loading);
 
     useEffect(() => {
         setIsMounted(true);
     }, []);
+
+    useEffect(() => {
+        if (data && data.length > 0) {
+            setFetchedData(data);
+            setIsLoading(loading);
+            return;
+        }
+
+        let isCancelled = false;
+        async function hydrateFromD1() {
+            setIsLoading(true);
+            try {
+                const res = await fetch('/api/get-stats');
+                if (res.ok) {
+                    const json = await res.json();
+                    if (Array.isArray(json) && !isCancelled) {
+                        setFetchedData(json);
+                    }
+                }
+            } catch (err) {
+                console.error('[RadarProfiler] Hydration error from D1:', err);
+            } finally {
+                if (!isCancelled) {
+                    setIsLoading(false);
+                }
+            }
+        }
+
+        hydrateFromD1();
+        return () => {
+            isCancelled = true;
+        };
+    }, [data, loading]);
 
     // SSR Guard
     if (!isMounted) {
@@ -42,12 +77,13 @@ export default function RadarProfiler({ data, loading = false }: RadarProfilerPr
         );
     }
 
-    // Safely fallback using optional chaining and baseline matrix
-    const chartData = (data && data.length > 0) ? data.map(item => ({
+    // Use active data (passed or fetched), otherwise fallback baseline
+    const activeData = (fetchedData && fetchedData.length > 0) ? fetchedData : (data && data.length > 0 ? data : DEFAULT_BASELINE);
+    const chartData = activeData.map(item => ({
         subject: item?.subject || 'Unknown',
         level: typeof item?.level === 'number' ? item.level : 1,
         fullMark: item?.fullMark || 100
-    })) : DEFAULT_BASELINE;
+    }));
 
     return (
         <div className="w-full max-w-md bg-[#121212]/80 backdrop-blur-md rounded-3xl border border-white/10 p-6 shadow-2xl flex flex-col items-center relative overflow-hidden">
@@ -58,7 +94,7 @@ export default function RadarProfiler({ data, loading = false }: RadarProfilerPr
             </h2>
 
             <div className="w-full min-h-[300px] relative z-10 flex items-center justify-center">
-                {loading ? (
+                {isLoading ? (
                     <div className="w-12 h-12 rounded-full border-4 border-white/5 border-t-blue-500 animate-spin" />
                 ) : (
                     <ResponsiveContainer width="100%" height={300}>

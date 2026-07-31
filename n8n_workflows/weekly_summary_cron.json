@@ -1,5 +1,5 @@
 {
-  "name": "AimSync: Phase 3 - Weekly Summary Cron",
+  "name": "AimSync: Phase 3 - Retention & Community Progression",
   "nodes": [
     {
       "parameters": {
@@ -12,10 +12,10 @@
           ]
         }
       },
-      "id": "cron-weekly-trigger",
-      "name": "Cron Sunday Night",
+      "id": "cron-sunday-trigger",
+      "name": "Sunday Night Cron Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.1,
+      "typeVersion": 1.2,
       "position": [
         200,
         300
@@ -24,7 +24,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://api.cloudflare.com/client/v4/accounts/{{ $node[\"Cron Sunday Night\"].parameter[\"cloudflareAccountId\"] || \"your-account-id\" }}/d1/database/{{ $node[\"Cron Sunday Night\"].parameter[\"cloudflareDatabaseId\"] || \"your-database-id\" }}/query",
+        "url": "=https://api.cloudflare.com/client/v4/accounts/{{ $node[\"Sunday Night Cron Trigger\"].parameter[\"cloudflareAccountId\"] || \"your-cloudflare-account-id\" }}/d1/database/{{ $node[\"Sunday Night Cron Trigger\"].parameter[\"cloudflareDatabaseId\"] || \"your-d1-database-id\" }}/query",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -38,13 +38,13 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\n  \"sql\": \"SELECT st.user_id, st.username, count(st.id) as total_sessions, sum(st.hits) as total_hits, sum(st.misses) as total_misses, round((sum(st.hits) * 100.0) / (sum(st.hits) + sum(st.misses)), 2) as avg_accuracy, max(st.max_combo) as peak_combo, sum(st.xp_earned) as weekly_xp_gained, up.current_level, up.total_xp FROM scores_telemetry st JOIN user_progression up ON st.user_id = up.user_id WHERE st.created_at >= datetime('now', '-7 days') AND st.integrity_flag = 'HIGH_INTEGRITY' GROUP BY st.user_id, st.username, up.current_level, up.total_xp ORDER BY weekly_xp_gained DESC LIMIT 10;\"\n}",
+        "jsonBody": "{\n  \"sql\": \"SELECT st.user_id, st.username, count(st.id) as total_sessions, sum(st.hits) as total_hits, sum(st.misses) as total_misses, round((sum(st.hits) * 100.0) / (sum(st.hits) + sum(st.misses)), 2) as avg_accuracy, avg(st.average_urgency_index) as avg_urgency, avg(st.over_flick_coefficient) as avg_overflick, max(st.max_combo) as peak_combo, sum(st.xp_earned) as weekly_xp_gained, up.current_level, up.total_xp FROM scores_telemetry st JOIN user_progression up ON st.user_id = up.user_id WHERE st.created_at >= datetime('now', '-7 days') AND st.integrity_flag = 'HIGH_INTEGRITY' GROUP BY st.user_id, st.username, up.current_level, up.total_xp ORDER BY weekly_xp_gained DESC LIMIT 10;\"\n}",
         "options": {}
       },
       "id": "query-cloudflare-d1",
-      "name": "Query Cloudflare D1",
+      "name": "Pull D1 Player Telemetry",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
+      "typeVersion": 4.2,
       "position": [
         420,
         300
@@ -58,14 +58,31 @@
     },
     {
       "parameters": {
-        "jsCode": "const d1Result = $input.first().json;\n// Cloudflare D1 v4 REST API returns result array\nconst players = d1Result.result?.[0]?.results || d1Result.result?.results || [];\n\nif (players.length === 0) {\n  return {\n    markdownReport: \"### 📊 AimSync Weekly Performance Digest\\n\\nNo active training telemetry recorded this week.\",\n    htmlReport: \"<h3>📊 AimSync Weekly Performance Digest</h3><p>No active training telemetry recorded this week.</p>\"\n  };\n}\n\nlet markdown = \"### 📊 AimSync Weekly Performance Summary\\n\\nHere are the top-performing active users on the AimSync network over the past 7 days:\\n\\n\";\nmarkdown += \"| Rank | Username | Level | Sessions | Total Hits | Avg Accuracy | Peak Combo | Weekly XP |\\n\";\nmarkdown += \"| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\\n\";\n\nlet html = `\n<h3>📊 AimSync Weekly Performance Summary</h3>\n<p>Here are the top-performing active users on the AimSync network over the past 7 days:</p>\n<table border=\"1\" cellpadding=\"5\" style=\"border-collapse: collapse; font-family: sans-serif; width: 100%; max-width: 600px;\">\n  <thead>\n    <tr style=\"background-color: #f2f2f2; text-align: left;\">\n      <th>Rank</th>\n      <th>Username</th>\n      <th>Level</th>\n      <th>Sessions</th>\n      <th>Total Hits</th>\n      <th>Avg Accuracy</th>\n      <th>Peak Combo</th>\n      <th>Weekly XP</th>\n    </tr>\n  </thead>\n  <tbody>\n`;\n\nplayers.forEach((p, index) => {\n  const rank = index + 1;\n  markdown += `| ${rank} | **${p.username}** | ${p.current_level} | ${p.total_sessions} | ${p.total_hits.toLocaleString()} | ${p.avg_accuracy}% | ${p.peak_combo} | +${p.weekly_xp_gained.toLocaleString()} XP |\\n`;\n  \n  html += `\n    <tr>\n      <td>${rank}</td>\n      <td><strong>${p.username}</strong></td>\n      <td>${p.current_level}</td>\n      <td>${p.total_sessions}</td>\n      <td>${p.total_hits.toLocaleString()}</td>\n      <td>${p.avg_accuracy}%</td>\n      <td>${p.peak_combo}</td>\n      <td style=\"color: #2e7d32; font-weight: bold;\">+${p.weekly_xp_gained.toLocaleString()} XP</td>\n    </tr>\n  `;\n});\n\nmarkdown += \"\\n\\n*This automated diagnostics report is compiled directly from the Cloudflare D1 scores telemetry database. Low integrity runs have been excluded.*\";\nhtml += `\n  </tbody>\n</table>\n<p style=\"font-size: 11px; color: #666; margin-top: 15px;\"><em>This automated diagnostics report is compiled directly from the Cloudflare D1 scores telemetry database. Low integrity runs have been excluded.</em></p>\n`;\n\nreturn {\n  markdownReport: markdown,\n  htmlReport: html\n};"
+        "model": "gpt-4o-mini",
+        "prompt": "=You are the AimSync AI Head Tactical Coach. Analyze these top player telemetry aggregates from Cloudflare D1 over the past 7 days:\n\n{{ JSON.stringify($json.result?.[0]?.results || $json.result?.results || []) }}\n\nSynthesize a concise 3-bullet Sunday Night Tactical Coaching Breakdown focusing on:\n1. Mechanical consistency & Urgency Index trends.\n2. Over-flick trajectory correction recommendations.\n3. Community progression rewards & next week's targeted training drill focus.",
+        "options": {
+          "temperature": 0.7
+        }
       },
-      "id": "format-report",
-      "name": "Template Report",
+      "id": "ai-coaching-generator",
+      "name": "Generate AI Coaching Summary",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.1,
+      "position": [
+        640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d1Result = $node[\"Pull D1 Player Telemetry\"].json;\nconst aiAdvice = $input.first().json.message?.content || $input.first().json.text || 'Keep grinding your mechanical flick alignment.';\nconst players = d1Result.result?.[0]?.results || d1Result.result?.results || [];\n\nlet markdown = \"### 🎯 AimSync Weekly Retention & Community Progression Digest\\n\\n\";\nmarkdown += \"**AI Tactical Coach Summary:**\\n\" + aiAdvice + \"\\n\\n\";\nmarkdown += \"#### 🏆 Weekly Leaderboard & Rewards (+500 Weekly Bonus XP Claimed)\\n\\n\";\nmarkdown += \"| Rank | Username | Level | Sessions | Avg Acc | Peak Combo | Weekly XP |\\n\";\nmarkdown += \"| :--- | :--- | :--- | :--- | :--- | :--- | :--- |\\n\";\n\nplayers.forEach((p, idx) => {\n  markdown += `| ${idx + 1} | **${p.username}** | Lvl ${p.current_level} | ${p.total_sessions} | ${p.avg_accuracy}% | ${p.peak_combo} | +${(p.weekly_xp_gained + 500).toLocaleString()} XP |\\n`;\n});\n\nmarkdown += \"\\n*Automated Sunday Report generated by Cloudflare D1 & n8n Progression Engine.*\";\n\nreturn {\n  markdownReport: markdown,\n  playerCount: players.length\n};"
+      },
+      "id": "format-retention-report",
+      "name": "Format Reports & Rewards",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        640,
+        860,
         300
       ]
     },
@@ -86,15 +103,15 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"from\": \"AimSync Analytics <reports@aimsync.dev>\",\n  \"to\": [\"admin@aimsync.dev\"],\n  \"subject\": \"AimSync Network Weekly Performance Summary\",\n  \"html\": \"{{ $json.htmlReport }}\"\n}",
+        "jsonBody": "={\n  \"from\": \"AimSync Coaching <coaching@aimsync.dev>\",\n  \"to\": [\"community-digest@aimsync.dev\"],\n  \"subject\": \"🎯 AimSync Sunday Telemetry & AI Coaching Report\",\n  \"markdown\": \"{{ $json.markdownReport }}\"\n}",
         "options": {}
       },
-      "id": "send-resend-email",
-      "name": "Send Email via Resend",
+      "id": "send-resend-digest",
+      "name": "Send Automated Email Report",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
+      "typeVersion": 4.2,
       "position": [
-        860,
+        1080,
         300
       ],
       "credentials": {
@@ -106,38 +123,52 @@
     }
   ],
   "connections": {
-    "Cron Sunday Night": {
+    "Sunday Night Cron Trigger": {
       "main": [
         [
           {
-            "node": "Query Cloudflare D1",
+            "node": "Pull D1 Player Telemetry",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Query Cloudflare D1": {
+    "Pull D1 Player Telemetry": {
       "main": [
         [
           {
-            "node": "Template Report",
+            "node": "Generate AI Coaching Summary",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Template Report": {
+    "Generate AI Coaching Summary": {
       "main": [
         [
           {
-            "node": "Send Email via Resend",
+            "node": "Format Reports & Rewards",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Reports & Rewards": {
+      "main": [
+        [
+          {
+            "node": "Send Automated Email Report",
             "type": "main",
             "index": 0
           }
         ]
       ]
     }
+  },
+  "settings": {
+    "executionOrder": "v1"
   }
 }

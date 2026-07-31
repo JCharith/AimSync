@@ -1,5 +1,5 @@
 {
-  "name": "AimSync: Phase 2 - Cheater Alert Webhook",
+  "name": "AimSync: Phase 2 - Automated Anti-Cheat Guard",
   "nodes": [
     {
       "parameters": {
@@ -11,7 +11,7 @@
       "id": "cheater-webhook-trigger",
       "name": "Security Webhook Trigger",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
+      "typeVersion": 1.1,
       "position": [
         250,
         300
@@ -19,19 +19,32 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://discord.com/api/webhooks/your-admin-alerts-webhook-url",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"embeds\": [\n    {\n      \"title\": \"🚨 AEGIS-SENTINEL: CHEATING ANOMALY DETECTED\",\n      \"description\": \"An anomalous game state progression and timing pattern was intercepted in scores telemetry pipeline.\",\n      \"color\": 15158332,\n      \"fields\": [\n        {\n          \"name\": \"👤 Player Username\",\n          \"value\": \"`{{ $json.username }}`\",\n          \"inline\": true\n        },\n        {\n          \"name\": \"🎮 Captured Score\",\n          \"value\": \"**{{ $json.score }}**\",\n          \"inline\": true\n        },\n        {\n          \"name\": \"🛡️ Detection Trigger\",\n          \"value\": \"`{{ $json.reason }}`\"\n        },\n        {\n          \"name\": \"💻 Hardware Profile\",\n          \"value\": \"```\\n{{ $json.hardwareProfile }}\\n```\"\n        },\n        {\n          \"name\": \"📊 Telemetry Diagnostics\",\n          \"value\": \"• **Accuracy:** {{ $json.telemetrySummary.accuracy }}%\\n• **Hits/Misses:** {{ $json.telemetrySummary.hits }} Hits / {{ $json.telemetrySummary.misses }} Misses\\n• **Run Duration:** {{ $json.telemetrySummary.durationSeconds }}s\\n• **Target Velocity:** {{ $json.telemetrySummary.inputVelocity }} targets/sec\"\n        }\n      ],\n      \"footer\": {\n        \"text\": \"AimSync Anti-Cheat Edge Daemon\"\n      },\n      \"timestamp\": \"{{ new Date().toISOString() }}\"\n    }\n  ]\n}",
-        "options": {}
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\n\nconst username = body.username || 'Unknown Player';\nconst score = body.score ?? 0;\nconst isFlagged = body.is_flagged ?? 0;\nconst reason = body.reason || 'Telemetry Anomaly Detected';\nconst hardwareProfile = body.hardwareProfile || 'Unknown Hardware ID';\nconst telemetry = body.telemetrySummary || {};\nconst timestamp = new Date().toISOString();\n\n// Calculate multiplier / velocity anomaly ratio\nconst inputVelocity = telemetry.inputVelocity || 0;\nconst anomalyMultiplier = (inputVelocity > 15 ? (inputVelocity / 15).toFixed(2) : '1.00') + 'x norm';\n\nreturn {\n  username,\n  score,\n  isFlagged,\n  reason,\n  hardwareProfile,\n  telemetry,\n  anomalyMultiplier,\n  timestamp\n};"
       },
-      "id": "send-discord-alert",
-      "name": "Send Discord Alert Embed",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
+      "id": "format-anomaly-data",
+      "name": "Format Anomaly Telemetry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://discord.com/api/webhooks/your-admin-alerts-webhook-id/your-webhook-token",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"embeds\": [\n    {\n      \"title\": \"🚨 AEGIS-SENTINEL: CHEATING ANOMALY DETECTED\",\n      \"description\": \"An anomalous game state progression and timing pattern was intercepted by the AimSync Edge scores telemetry pipeline.\",\n      \"color\": 15158332,\n      \"fields\": [\n        {\n          \"name\": \"👤 Player ID / Username\",\n          \"value\": \"`{{ $json.username }}`\",\n          \"inline\": true\n        },\n        {\n          \"name\": \"🎮 Captured Score\",\n          \"value\": \"**{{ $json.score.toLocaleString() }}**\",\n          \"inline\": true\n        },\n        {\n          \"name\": \"⚡ Score Multiplier Anomaly\",\n          \"value\": \"`{{ $json.anomalyMultiplier }}`\",\n          \"inline\": true\n        },\n        {\n          \"name\": \"🛡️ Detection Trigger\",\n          \"value\": \"`{{ $json.reason }}`\"\n        },\n        {\n          \"name\": \"💻 Hardware Profile\",\n          \"value\": \"```\\n{{ $json.hardwareProfile }}\\n```\"\n        },\n        {\n          \"name\": \"📊 Telemetry Diagnostics\",\n          \"value\": \"• **Accuracy:** {{ $json.telemetry.accuracy }}%\\n• **Hits/Misses:** {{ $json.telemetry.hits }} Hits / {{ $json.telemetry.misses }} Misses\\n• **Run Duration:** {{ $json.telemetry.durationSeconds }}s\\n• **Target Velocity:** {{ $json.telemetry.inputVelocity }} targets/sec\"\n        }\n      ],\n      \"footer\": {\n        \"text\": \"AimSync Aegis Security Guard • #admin-alerts\"\n      },\n      \"timestamp\": \"{{ $json.timestamp }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "send-discord-admin-alert",
+      "name": "Post #admin-alerts Discord Embed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        710,
         300
       ]
     }
@@ -41,12 +54,26 @@
       "main": [
         [
           {
-            "node": "Send Discord Alert Embed",
+            "node": "Format Anomaly Telemetry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Anomaly Telemetry": {
+      "main": [
+        [
+          {
+            "node": "Post #admin-alerts Discord Embed",
             "type": "main",
             "index": 0
           }
         ]
       ]
     }
+  },
+  "settings": {
+    "executionOrder": "v1"
   }
 }

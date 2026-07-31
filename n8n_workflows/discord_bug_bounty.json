@@ -11,7 +11,7 @@
       "id": "discord-webhook-trigger",
       "name": "Discord Webhook Trigger",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
+      "typeVersion": 1.1,
       "position": [
         200,
         300
@@ -19,10 +19,10 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json.body;\nconst options = body.data?.options || [];\nconst description = options.find(o => o.name === 'description')?.value || 'No description provided';\nconst logs = options.find(o => o.name === 'logs')?.value || 'No logs provided';\nconst username = body.member?.user?.username || body.user?.username || 'unknown_user';\nconst userId = body.member?.user?.id || body.user?.id || 'unknown_id';\n\nreturn {\n  description,\n  logs,\n  username,\n  userId\n};"
+        "jsCode": "const body = $input.first().json.body || {};\nconst options = body.data?.options || [];\n\nconst description = options.find(o => o.name === 'description')?.value || 'No detailed description provided.';\nconst logs = options.find(o => o.name === 'logs')?.value || 'No telemetry logs attached.';\nconst severity = options.find(o => o.name === 'severity')?.value || 'medium';\nconst username = body.member?.user?.username || body.user?.username || 'unknown_agent';\nconst userId = body.member?.user?.id || body.user?.id || '000000000000000000';\nconst timestamp = new Date().toISOString();\n\nreturn {\n  description,\n  logs,\n  severity,\n  username,\n  userId,\n  timestamp\n};"
       },
-      "id": "extract-discord-options",
-      "name": "Extract Options",
+      "id": "parse-telemetry-payload",
+      "name": "Parse Telemetry Payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -51,13 +51,13 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"title\": \"🐛 Bug Report: [{{ $json.username }}]\",\n  \"body\": \"### Description\\n{{ $json.description }}\\n\\n### Logs / Diagnostics\\n```\\n{{ $json.logs }}\\n```\\n\\n*Logged automatically via Discord slash command by @{{ $json.username }} (ID: {{ $json.userId }}).*\",\n  \"labels\": [\"bug-bounty\", \"discord-slash\"]\n}",
+        "jsonBody": "={\n  \"title\": \"🐛 [Bug Report]: {{ $json.description.substring(0, 50) }} (via @{{ $json.username }})\",\n  \"body\": \"### 🐛 Telemetry Bug Report\\n\\n**Reporter:** @{{ $json.username }} (Discord ID: `{{ $json.userId }}`)\\n**Severity Level:** `{{ $json.severity.toUpperCase() }}`\\n**Timestamp:** `{{ $json.timestamp }}`\\n\\n---\\n### 📝 Description\\n{{ $json.description }}\\n\\n---\\n### 💻 Telemetry & Diagnostic Logs\\n```json\\n{{ $json.logs }}\\n```\\n\\n*Automated issue created by AimSync Aegis Bug Bounty n8n Workflow.*\",\n  \"labels\": [\"bug-bounty\", \"discord-slash\", \"unconfirmed\"]\n}",
         "options": {}
       },
       "id": "create-github-issue",
       "name": "Create GitHub Issue",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
+      "typeVersion": 4.2,
       "position": [
         640,
         300
@@ -65,18 +65,18 @@
       "credentials": {
         "httpHeaderAuth": {
           "id": "github-api-token",
-          "name": "GitHub Token"
+          "name": "GitHub Token Header"
         }
       }
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={\n  \"type\": 4,\n  \"data\": {\n    \"embeds\": [\n      {\n        \"title\": \"🐛 Bug Report Tracked!\",\n        \"description\": \"Your bug report has been successfully logged on the AimSync GitHub repository.\",\n        \"color\": 3066993,\n        \"fields\": [\n          {\n            \"name\": \"Reporter\",\n            \"value\": \"<@{{ $node[\\\"Extract Options\\\"].json.userId }}>\",\n            \"inline\": true\n          },\n          {\n            \"name\": \"GitHub Issue\",\n            \"value\": \"[#{{ $json.number }}]({{ $json.html_url }})\",\n            \"inline\": true\n          },\n          {\n            \"name\": \"Description Preview\",\n            \"value\": \"{{ $node[\\\"Extract Options\\\"].json.description.substring(0, 100) }}...\"\n          }\n        ],\n        \"footer\": {\n          \"text\": \"AimSync Aegis Bug Bounty System\"\n        },\n        \"timestamp\": \"{{ new Date().toISOString() }}\"\n      }\n    ]\n  }\n}",
+        "responseBody": "={\n  \"type\": 4,\n  \"data\": {\n    \"embeds\": [\n      {\n        \"title\": \"🐛 AimSync Bug Bounty Submitted!\",\n        \"description\": \"Your telemetry bug report has been parsed and posted directly to the AimSync GitHub core issue tracker.\",\n        \"color\": 3066993,\n        \"fields\": [\n          {\n            \"name\": \"Reporter\",\n            \"value\": \"<@{{ $node[\\\"Parse Telemetry Payload\\\"].json.userId }}>\",\n            \"inline\": true\n          },\n          {\n            \"name\": \"Issue Ticket\",\n            \"value\": \"[#{{ $json.number }}]({{ $json.html_url }})\",\n            \"inline\": true\n          },\n          {\n            \"name\": \"Severity\",\n            \"value\": \"`{{ $node[\\\"Parse Telemetry Payload\\\"].json.severity.toUpperCase() }}`\",\n            \"inline\": true\n          },\n          {\n            \"name\": \"Summary Preview\",\n            \"value\": \"{{ $node[\\\"Parse Telemetry Payload\\\"].json.description.substring(0, 150) }}...\"\n          }\n        ],\n        \"footer\": {\n          \"text\": \"AimSync Aegis Security & Bug Bounty Engine\"\n        },\n        \"timestamp\": \"{{ new Date().toISOString() }}\"\n      }\n    ]\n  }\n}",
         "options": {}
       },
-      "id": "respond-to-discord",
-      "name": "Respond to Webhook",
+      "id": "respond-discord-embed",
+      "name": "Respond to Discord Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
@@ -90,14 +90,14 @@
       "main": [
         [
           {
-            "node": "Extract Options",
+            "node": "Parse Telemetry Payload",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Extract Options": {
+    "Parse Telemetry Payload": {
       "main": [
         [
           {
@@ -112,12 +112,15 @@
       "main": [
         [
           {
-            "node": "Respond to Webhook",
+            "node": "Respond to Discord Webhook",
             "type": "main",
             "index": 0
           }
         ]
       ]
     }
+  },
+  "settings": {
+    "executionOrder": "v1"
   }
 }

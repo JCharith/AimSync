@@ -12,7 +12,6 @@ interface TrackingTargetProps {
     activeMode?: string;
 }
 
-// Reusable vector reference to avoid GC allocations in the 144Hz animation loop
 const ZERO_VECTOR = new THREE.Vector3(0, 0, 0);
 
 export default function TrackingTarget({ id, baseDistance = -15, activeMode = 'continuous-track' }: TrackingTargetProps) {
@@ -20,14 +19,14 @@ export default function TrackingTarget({ id, baseDistance = -15, activeMode = 'c
     const activeWeapon = useWeaponStore((state) => state.activeWeapon);
     const { getShotTrajectory } = useRecoil(activeWeapon);
 
-    // Generate random frequencies and amplitudes so every target moves uniquely
+    // Random frequencies & radii for Lissajous trajectory
     const { speedX, speedY, speedZ, radiusX, radiusY, radiusZ } = useMemo(() => ({
-        speedX: Math.random() * 1.5 + 0.5, // Horizontal speed
-        speedY: Math.random() * 1.5 + 0.5, // Vertical speed
-        speedZ: Math.random() * 1.0 + 0.2, // Depth speed (slower)
-        radiusX: Math.random() * 6 + 4,    // How far it sweeps left/right
-        radiusY: Math.random() * 4 + 2,    // How far it sweeps up/down
-        radiusZ: Math.random() * 5 + 2     // How far it pushes in/out
+        speedX: Math.random() * 1.5 + 0.6,
+        speedY: Math.random() * 1.5 + 0.6,
+        speedZ: Math.random() * 1.0 + 0.3,
+        radiusX: Math.random() * 6 + 4,
+        radiusY: Math.random() * 4 + 2.5,
+        radiusZ: Math.random() * 4 + 2,
     }), []);
 
     const evasionOffset = useRef(new THREE.Vector3(0, 0, 0));
@@ -35,10 +34,9 @@ export default function TrackingTarget({ id, baseDistance = -15, activeMode = 'c
     useFrame((state, delta) => {
         if (!meshRef.current) return;
 
-        // Get elapsed time for smooth, continuous math
         const t = state.clock.getElapsedTime();
 
-        // Lissajous Curve Math: Complex erratic movement using simple sine/cosine waves
+        // Lissajous curve base movement
         const xBase = Math.sin(t * speedX) * radiusX;
         const yBase = Math.cos(t * speedY) * radiusY;
         const zBase = baseDistance + Math.sin(t * speedZ) * radiusZ;
@@ -47,7 +45,7 @@ export default function TrackingTarget({ id, baseDistance = -15, activeMode = 'c
         let finalY = yBase;
         let finalZ = zBase;
 
-        // Recoil-Reactive Evasion logic
+        // Recoil-Reactive Evasion Physics Protocol
         if (activeMode === 'recoil-reactive' || activeMode === 'recoil-evasion') {
             const recoil = getShotTrajectory();
             const kickY = recoil.kickY || 0;
@@ -59,27 +57,26 @@ export default function TrackingTarget({ id, baseDistance = -15, activeMode = 'c
             const bloomMagnitude = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
 
             // Active counter-spray dodge trigger
-            if (sprayMagnitude > 0.05 || bloomMagnitude > 0.005) {
-                // Dodge away from the weapon spray trajectory
+            if (sprayMagnitude > 0.04 || bloomMagnitude > 0.004) {
+                // Target shifts velocity and dives away from recoil kick direction
                 const dodgeDirX = kickX > 0 ? -1 : 1;
-                const dodgeDirY = kickY > 0 ? -1 : 0.5; // Dive down
+                const dodgeDirY = kickY > 0 ? -1.2 : 0.8; // Evasive dive downwards
 
-                evasionOffset.current.x += (dodgeDirX * 15.0 + Math.sin(t * 15) * 5.0) * delta;
-                evasionOffset.current.y += (dodgeDirY * 12.0) * delta;
+                evasionOffset.current.x += (dodgeDirX * 16.0 + Math.sin(t * 18) * 6.0) * delta;
+                evasionOffset.current.y += (dodgeDirY * 14.0) * delta;
             } else {
-                // Return to base Lissajous curve smoothly using static reference
-                evasionOffset.current.lerp(ZERO_VECTOR, 0.1);
+                // Smooth recovery back to base Lissajous path
+                evasionOffset.current.lerp(ZERO_VECTOR, 0.08);
             }
 
-            // Bind values to prevent the target from completely flying off-screen
-            evasionOffset.current.x = Math.max(-8, Math.min(8, evasionOffset.current.x));
-            evasionOffset.current.y = Math.max(-6, Math.min(6, evasionOffset.current.y));
+            // Clamp evasion bounds to prevent target from exiting viewport bounds
+            evasionOffset.current.x = Math.max(-9, Math.min(9, evasionOffset.current.x));
+            evasionOffset.current.y = Math.max(-7, Math.min(7, evasionOffset.current.y));
 
             finalX += evasionOffset.current.x;
             finalY += evasionOffset.current.y;
         }
 
-        // Apply the new position
         meshRef.current.position.set(finalX, finalY, finalZ);
     });
 
@@ -89,8 +86,8 @@ export default function TrackingTarget({ id, baseDistance = -15, activeMode = 'c
             name="tracking-target"
             userData={{ id }}
         >
-            <sphereGeometry args={[0.5, 8, 8]} />
-            <meshBasicMaterial color="#FF9900" />
+            <sphereGeometry args={[0.5, 12, 12]} />
+            <meshBasicMaterial color={activeMode === 'recoil-evasion' || activeMode === 'recoil-reactive' ? '#ff6600' : '#FF9900'} />
         </mesh>
     );
 }

@@ -3,7 +3,9 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/contexts/AuthContext";
+import StatsAndSocials from "@/components/landing/StatsAndSocials";
 
 /* ---------- animated grid canvas ---------- */
 function GridCanvas() {
@@ -142,11 +144,11 @@ function CS2Logo() {
 /* ---------- stat chip ---------- */
 function StatChip({ value, label }: { value: string; label: string }) {
   return (
-    <div className="flex flex-col items-center gap-0.5">
-      <span className="text-3xl font-black tracking-tight text-white tabular-nums">
+    <div className="flex flex-col items-center justify-center gap-1.5 text-center px-4">
+      <span className="text-xl md:text-2xl lg:text-3xl font-black tracking-tight text-white tabular-nums">
         {value}
       </span>
-      <span className="text-[10px] font-bold tracking-[0.25em] uppercase text-red">
+      <span className="text-[10px] md:text-xs font-bold tracking-[0.2em] uppercase text-red">
         {label}
       </span>
     </div>
@@ -155,9 +157,37 @@ function StatChip({ value, label }: { value: string; label: string }) {
 
 /* ---------- main page ---------- */
 export default function Home() {
-  const { user, isTrial } = useAuth();
+  const { user, isTrial, isLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    // Early session checks & Auth.js rehydration corridors
+    const storedUser = localStorage.getItem("aimsync_current_user");
+    const isTrialActive = localStorage.getItem("aimsync_trial_active") === "true";
+    const hasSession = !!storedUser || isTrialActive || user || isTrial;
+
+    if (hasSession) {
+      // Direct window logic / DOM pointer transition without hitting React state triggers
+      const landingRoot = document.getElementById("landing-root");
+      if (landingRoot) {
+        // GPU Compositor Retention styles
+        landingRoot.style.willChange = "transform, opacity";
+        landingRoot.style.transition = "transform 600ms cubic-bezier(0.16, 1, 0.3, 1), opacity 600ms cubic-bezier(0.16, 1, 0.3, 1)";
+        landingRoot.style.transform = "translate3d(0, -20px, 0) scale(0.98)";
+        landingRoot.style.opacity = "0";
+      }
+
+      // Route the viewport to /dashboard automatically without requiring manual player input
+      const timer = setTimeout(() => {
+        router.push("/dashboard");
+      }, 350);
+
+      return () => clearTimeout(timer);
+    }
+  }, [user, isTrial, router]);
+
   return (
-    <div className="min-h-screen flex flex-col bg-background selection:bg-red/30">
+    <div id="landing-root" className="min-h-screen flex flex-col bg-background selection:bg-red/30" style={{ willChange: "transform, opacity" }}>
       {/* ═══ HERO SECTION ═══ */}
       <section className="relative flex flex-col min-h-screen overflow-hidden">
         {/* Background image layer */}
@@ -200,9 +230,14 @@ export default function Home() {
             <Link href="#how-it-works" className="hover:text-white transition-colors">
               How it works
             </Link>
-            <Link href="#plus" className="hover:text-white transition-colors">
+            <a
+              href="https://www.patreon.com/aimsync"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white transition-colors"
+            >
               Plus+
-            </Link>
+            </a>
           </div>
 
           {/* Right side: sign in */}
@@ -258,15 +293,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ═══ STATS STRIP ═══ */}
-      <section className="relative z-10 border-y border-white/5 bg-surface/80 backdrop-blur-md py-12">
-        <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 px-8">
-          <StatChip value="10M+" label="Drills Played" />
-          <StatChip value="500K+" label="Active Users" />
-          <StatChip value="100%" label="Browser Based" />
-          <StatChip value="0" label="Downloads" />
-        </div>
-      </section>
+      {/* ═══ STATS & SOCIALS HUB ═══ */}
+      <StatsAndSocials />
 
       {/* ═══ BENCHMARK SECTION ═══ */}
       <section id="how-it-works" className="relative z-10 px-8 md:px-16 py-32 max-w-7xl mx-auto w-full flex flex-col md:flex-row items-center gap-16">
@@ -417,26 +445,39 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ═══ ADVANCED ANALYTICS ═══ */}
+      {/* ═══ ADVANCED ANALYTICS (Patreon Plus+) ═══ */}
       <section id="plus" className="relative z-10 px-8 md:px-16 py-32 max-w-7xl mx-auto w-full flex flex-col md:flex-row-reverse items-center gap-16">
         <div className="flex-1 space-y-8">
+          <div className="inline-block px-4 py-1.5 rounded-full border border-red/30 bg-red/10 text-red text-xs font-black tracking-widest uppercase">
+            AimSync Plus+ Supporter
+          </div>
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-black uppercase tracking-tighter text-white leading-tight">
-            KNOW THE TRUTH <br />ABOUT YOUR AIM
+            SUPPORT THE PLATFORM, <br />UNLOCK ELITE STATUS
           </h2>
           <p className="text-slate-400 text-lg leading-relaxed">
-            Stop guessing what went wrong. Dive into advanced data analytics tracking your reaction time, precision drop-off, overflick angles, and micro-correction speed.
+            AimSync is built for gaming athletes. By joining our Patreon supporter tiers from just <strong>$1 to $5/month</strong>, you directly fuel the development of our browser-based, zero-installation core engine while gaining premium privileges.
           </p>
           <ul className="space-y-4 text-white font-bold tracking-wider">
             <li className="flex items-center gap-3">
-              <span className="text-red text-xl">✓</span> Reaction Time Analysis
+              <span className="text-red text-xl">✓</span> Vanguard Tier ($1/mo): Discord role + Supporter badge
             </li>
             <li className="flex items-center gap-3">
-              <span className="text-red text-xl">✓</span> Error Angle Tracking
+              <span className="text-red text-xl">✓</span> Elite Tier ($3/mo): Advanced analytics + early access features
             </li>
             <li className="flex items-center gap-3">
-              <span className="text-red text-xl">✓</span> Smoothness Profiling
+              <span className="text-red text-xl">✓</span> Pro-Caliber Tier ($5/mo): Custom drill builder + unlimited telemetry history
             </li>
           </ul>
+          <div className="pt-4">
+            <a
+              href="https://www.patreon.com/aimsync"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="patreon-btn"
+            >
+              Unlock Elite Supporter Tier +
+            </a>
+          </div>
         </div>
         <div className="flex-1 relative w-full aspect-video bg-surface/80 border border-white/10 rounded-xl overflow-hidden shadow-2xl p-6 flex flex-col">
           <div className="w-full flex items-end gap-2 h-48 border-b border-white/10 pb-4">
@@ -492,7 +533,16 @@ export default function Home() {
               <li><Link href="/dashboard" className="hover:text-red transition-colors">The Trainer</Link></li>
               <li><Link href="/dashboard" className="hover:text-red transition-colors">Benchmarks</Link></li>
               <li><Link href="/dashboard" className="hover:text-red transition-colors">Analytics</Link></li>
-              <li><Link href="/dashboard" className="hover:text-red transition-colors">Plus+</Link></li>
+              <li>
+                <a
+                  href="https://www.patreon.com/aimsync"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-red transition-colors"
+                >
+                  Plus+
+                </a>
+              </li>
             </ul>
           </div>
 
@@ -500,10 +550,10 @@ export default function Home() {
           <div>
             <h4 className="text-white text-xs font-black uppercase tracking-widest mb-6">Community</h4>
             <ul className="space-y-4 text-sm font-bold text-slate-500">
-              <li><Link href="#" className="hover:text-red transition-colors">Discord</Link></li>
-              <li><Link href="#" className="hover:text-red transition-colors">Twitter / X</Link></li>
-              <li><Link href="#" className="hover:text-red transition-colors">Terms of Service</Link></li>
-              <li><Link href="#" className="hover:text-red transition-colors">Privacy Policy</Link></li>
+              <li><a href="https://discord.gg/aimsync" target="_blank" rel="noopener noreferrer" className="hover:text-red transition-colors">Discord</a></li>
+              <li><a href="https://github.com/LogicArchitectDS/AimSync" target="_blank" rel="noopener noreferrer" className="hover:text-red transition-colors">GitHub Docs</a></li>
+              <li><Link href="/terms" className="hover:text-red transition-colors">Terms of Service</Link></li>
+              <li><Link href="/privacy" className="hover:text-red transition-colors">Privacy Policy</Link></li>
             </ul>
           </div>
         </div>
@@ -519,6 +569,63 @@ export default function Home() {
       <style>{`
         .scrollbar-none::-webkit-scrollbar { display: none; }
         .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .patreon-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          background: #ff4655; /* Tactical cyber-neon red */
+          color: #ffffff;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 0.15em;
+          padding: 1.25rem 2.5rem;
+          border-radius: 0.375rem;
+          font-size: 0.875rem;
+          z-index: 1;
+          transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+          will-change: transform;
+        }
+
+        /* Background/Glow layer for GPU composited shadows */
+        .patreon-btn::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          border-radius: 0.375rem;
+          background: #ff4655;
+          box-shadow: 0 0 25px rgba(255, 70, 85, 0.7);
+          opacity: 0.5;
+          z-index: -1;
+          transition: opacity 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+          will-change: transform, opacity;
+        }
+
+        .patreon-btn:hover {
+          transform: scale(1.05);
+        }
+
+        .patreon-btn:hover::before {
+          opacity: 1;
+          transform: scale(1.08);
+          box-shadow: 0 0 35px rgba(255, 70, 85, 0.9);
+        }
+
+        .patreon-btn:focus {
+          outline: none;
+          transform: scale(1.05);
+        }
+
+        .patreon-btn:focus::before {
+          opacity: 1;
+          transform: scale(1.12);
+          box-shadow: 0 0 45px rgba(255, 70, 85, 0.95);
+        }
+
+        .patreon-btn:active {
+          transform: scale(0.98);
+        }
       `}</style>
     </div>
   );

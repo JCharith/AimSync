@@ -144,3 +144,10 @@ AimSync Codebase Evolution & Integration Log
     - Integrated premium tactical styling with CSS `drop-shadow()` vector sprites, responsive SVG hitmarkers, high-performance ammo indicator clips, and dynamic floating combo text popups projected from 3D space.
     - Refactored `GameCanvas.tsx` to feed high-frequency events (ammo depletion, timer updates, targets hit, combo climbs, and killfeed entries) directly to the isolated HUD layer without triggering canvas re-renders.
     - Status: COMPLETED / READY FOR FRONTEND DEPLOYMENT SEEDING
+
+22. Platform Entry Decoupling & Patreon Integration
+    - Decoupled platform launch flow from manual clicks by introducing a silent rehydration check on the landing page mount.
+    - Implemented a hardware-accelerated transition using direct DOM selectors and compositor-friendly properties (`will-change: transform, opacity;`) to hide the landing view and seamlessly route user viewports to `/dashboard` upon verification of active user profile sessions or active guest trials.
+    - Re-purposed the landing page's Plus+ conversion nodes into a secure external link targeting the Patreon supporter tiers ($1 to $5 low-friction tiers).
+    - Upgraded statistics counter panels on the landing page to hardcode total catalog scale ("14 Precision Drills"), serverless deployment scale ("0 MB Installation (Edge-Run)"), and preloaded pro playlists ("3 Pro-Caliber Playlists Preloaded") using optimized responsive layout text.
+    - Status: COMPLETED / LIVE
