@@ -3,7 +3,6 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import StatsAndSocials from "@/components/landing/StatsAndSocials";
 import { LandingFooter } from "@/components/landing/HeroAndFooter";
@@ -159,33 +158,6 @@ function StatChip({ value, label }: { value: string; label: string }) {
 /* ---------- main page ---------- */
 export default function Home() {
   const { user, isTrial, isLoading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    // Early session checks & Auth.js rehydration corridors
-    const storedUser = localStorage.getItem("aimsync_current_user");
-    const isTrialActive = localStorage.getItem("aimsync_trial_active") === "true";
-    const hasSession = !!storedUser || isTrialActive || user || isTrial;
-
-    if (hasSession) {
-      // Direct window logic / DOM pointer transition without hitting React state triggers
-      const landingRoot = document.getElementById("landing-root");
-      if (landingRoot) {
-        // GPU Compositor Retention styles
-        landingRoot.style.willChange = "transform, opacity";
-        landingRoot.style.transition = "transform 600ms cubic-bezier(0.16, 1, 0.3, 1), opacity 600ms cubic-bezier(0.16, 1, 0.3, 1)";
-        landingRoot.style.transform = "translate3d(0, -20px, 0) scale(0.98)";
-        landingRoot.style.opacity = "0";
-      }
-
-      // Route the viewport to /dashboard automatically without requiring manual player input
-      const timer = setTimeout(() => {
-        router.push("/dashboard");
-      }, 350);
-
-      return () => clearTimeout(timer);
-    }
-  }, [user, isTrial, router]);
 
   return (
     <div id="landing-root" className="min-h-screen flex flex-col bg-background selection:bg-red/30" style={{ willChange: "transform, opacity" }}>
