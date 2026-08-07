@@ -41,6 +41,36 @@ async function verifyHmacSha256(message: string, signature: string, secretKey: s
     }
 }
 
+// Helper: Categorize click deltas or miss objects into 4 basic quadrants (INTEGER counts)
+function compute4QuadrantMissCounts(payload: any): { qTL: number; qTR: number; qBL: number; qBR: number } {
+    let qTL = 0, qTR = 0, qBL = 0, qBR = 0;
+
+    // 1. Direct object format check { topLeft, topRight, bottomLeft, bottomRight }
+    const mq = payload.missQuadrants || payload.miss_quadrants;
+    if (mq && typeof mq === 'object') {
+        qTL = Math.max(0, Math.floor(mq.topLeft || mq.top_left || mq.miss_quadrant_top_left || 0));
+        qTR = Math.max(0, Math.floor(mq.topRight || mq.top_right || mq.miss_quadrant_top_right || 0));
+        qBL = Math.max(0, Math.floor(mq.bottomLeft || mq.bottom_left || mq.miss_quadrant_bottom_left || 0));
+        qBR = Math.max(0, Math.floor(mq.bottomRight || mq.bottom_right || mq.miss_quadrant_bottom_right || 0));
+        return { qTL, qTR, qBL, qBR };
+    }
+
+    // 2. Click delta coordinates list check [ { x, y }, ... ]
+    const clickDeltas = payload.clickDeltas || payload.missLocations || payload.miss_locations;
+    if (Array.isArray(clickDeltas)) {
+        for (const point of clickDeltas) {
+            const x = typeof point.x === 'number' ? point.x : (point[0] ?? 0);
+            const y = typeof point.y === 'number' ? point.y : (point[1] ?? 0);
+            if (x < 0 && y < 0) qTL++;
+            else if (x >= 0 && y < 0) qTR++;
+            else if (x < 0 && y >= 0) qBL++;
+            else qBR++;
+        }
+    }
+
+    return { qTL, qTR, qBL, qBR };
+}
+
 // --- Anti-Cheat Helper 1: Bot periodic auto-firing arithmetic progression check ---
 function checkArithmeticProgression(ghostTelemetry: any): boolean {
     if (!ghostTelemetry) return false;
@@ -70,7 +100,6 @@ function checkArithmeticProgression(ghostTelemetry: any): boolean {
         const variance = intervals.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / intervals.length;
         const stdDev = Math.sqrt(variance);
 
-        // Standard deviation < 2.0ms with repetitive interval indicates auto-firing script
         return stdDev < 2.0;
     } catch {
         return false;
@@ -98,16 +127,12 @@ function validateGhostTelemetry(ghostTelemetry: any): { isSuspicious: boolean; r
                 const dx = ghost[i].x - ghost[i - 1].x;
                 const dy = ghost[i].y - ghost[i - 1].y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                
-                // Sudden teleportation check (> 1500px in < 10ms frame)
                 const dt = ghost[i].t !== undefined && ghost[i - 1].t !== undefined ? (ghost[i].t - ghost[i - 1].t) : 16;
-                if (dt > 0 && dist / dt > 50) { // > 50px/ms is humanly impossible
+                if (dt > 0 && dist / dt > 50) {
                     return { isSuspicious: true, reason: 'Instantaneous Cursor Teleportation Detected' };
                 }
-                
                 if (dist === 0) zeroDeltas++;
             }
-            // Artificial linear snap bot check
             if (zeroDeltas > ghost.length * 0.9) {
                 return { isSuspicious: true, reason: 'Synthetic Straight-Line Bot Trajectory' };
             }
@@ -122,16 +147,15 @@ function validateGhostTelemetry(ghostTelemetry: any): { isSuspicious: boolean; r
 // POST Handler: Edge Network Session Security Lockdown & Telemetry Sync
 // ====================================================================
 export async function POST(request: Request) {
-    // 1. Strict Network Layer Header Verification
+    // 1. Edge Cryptographic Session Header & Token Lockdown (Network Layer Enforcement)
     const authHeader = request.headers.get('Authorization');
     const customSigHeader = request.headers.get('x-session-signature');
     const customUserIdHeader = request.headers.get('x-user-id');
     const secret = process.env.AUTH_SECRET;
 
     // Retrieve active session via Auth.js
-    const session = await auth();
+    const session = await auth().catch(() => null);
 
-    // Verification step: Check for guest / trial bypass
     let body: any;
     try {
         body = await request.json();
@@ -139,10 +163,59 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
     }
 
-    const isTrialUser = body.isTrial === true || !session || !session.user || !session.user.id || 
-                        session.user.id === 'guest' || session.user.id === 'trial' || session.user.id === 'local';
+    const isTrialUser = body.isTrial === true || body.guest === true;
 
-    if (isTrialUser) {
+    // Reject untrusted requests immediately if not trial mode and session/auth headers are absent or invalid
+    if (!isTrialUser) {
+        if (!session || !session.user || !session.user.id) {
+            // Rejection vector 1: Missing Auth.js session
+            if (!authHeader && !customSigHeader) {
+                return NextResponse.json(
+                    { error: 'Unauthorized: Missing valid session authentication token or headers' },
+                    { status: 401 }
+                );
+            }
+        }
+
+        const userId = session?.user?.id || customUserIdHeader;
+        if (!userId || userId === 'guest' || userId === 'trial' || userId === 'local' || userId === 'undefined') {
+            return NextResponse.json(
+                { error: 'Unauthorized: Invalid user identity header' },
+                { status: 401 }
+            );
+        }
+
+        // Cryptographic HMAC session verification
+        if (secret) {
+            if (session?.user?.signature) {
+                const isValidSig = await verifyHmacSha256(userId, session.user.signature, secret);
+                if (!isValidSig) {
+                    return NextResponse.json(
+                        { error: 'Forbidden: DevTools Session Signature Spoofing Intercepted' },
+                        { status: 403 }
+                    );
+                }
+            }
+            if (customSigHeader && customUserIdHeader) {
+                if (customUserIdHeader !== userId) {
+                    return NextResponse.json(
+                        { error: 'Forbidden: Security Header Mismatch' },
+                        { status: 403 }
+                    );
+                }
+                const isValidHeaderSig = await verifyHmacSha256(customUserIdHeader, customSigHeader, secret);
+                if (!isValidHeaderSig) {
+                    return NextResponse.json(
+                        { error: 'Forbidden: Network Layer Header Signature Tampered' },
+                        { status: 403 }
+                    );
+                }
+            }
+        }
+    }
+
+    // Trial Mode Short-Circuit Response
+    if (isTrialUser || !session || !session.user || !session.user.id) {
         return NextResponse.json({
             success: true,
             xpEarned: 0,
@@ -157,29 +230,7 @@ export async function POST(request: Request) {
 
     const userId = session.user.id;
 
-    // Cryptographic Session Header Validation at Cloudflare Edge Network Layer
-    if (secret) {
-        // Option A: Validate via Auth.js session signature
-        if (session.user.signature) {
-            const isValidSig = await verifyHmacSha256(userId, session.user.signature, secret);
-            if (!isValidSig) {
-                return NextResponse.json({ error: 'Forbidden: DevTools Session Signature Spoofing Detected' }, { status: 403 });
-            }
-        }
-        
-        // Option B: Direct Network Layer Header verification if custom headers provided
-        if (customSigHeader && customUserIdHeader) {
-            if (customUserIdHeader !== userId) {
-                return NextResponse.json({ error: 'Forbidden: Header User Mismatch' }, { status: 403 });
-            }
-            const isValidHeaderSig = await verifyHmacSha256(customUserIdHeader, customSigHeader, secret);
-            if (!isValidHeaderSig) {
-                return NextResponse.json({ error: 'Forbidden: Network Layer Header Signature Tampered' }, { status: 403 });
-            }
-        }
-    }
-
-    // 2. Server-Side Data Extraction & Calculation (Zero Client Trust)
+    // 2. Server-Side Performance Data Extraction & Zero-Client-Trust Calculations
     const exerciseId = body.exerciseId || body.exercise_id || 'unknown';
     const rawHits = typeof body.hits === 'number' ? body.hits : (body.rawScoreData?.hits ?? 0);
     const rawMisses = typeof body.misses === 'number' ? body.misses : (body.rawScoreData?.misses ?? 0);
@@ -192,17 +243,19 @@ export async function POST(request: Request) {
     const accuracyFraction = totalTargets > 0 ? (hits / totalTargets) : 0;
     const accuracy = accuracyFraction * 100;
 
-    // Advanced Kinematic telemetry
     const averageUrgencyIndex = typeof body.averageUrgencyIndex === 'number' ? body.averageUrgencyIndex : 1.0;
     const overFlickCoefficient = typeof body.overFlickCoefficient === 'number' ? body.overFlickCoefficient : 1.0;
     const difficulty = body.difficulty || 'medium';
     const username = session.user.name || session.user.email || 'Player';
     const ghostTelemetry = body.ghostTelemetry || body.ghost_telemetry || null;
-    const missQuadrants = body.missQuadrants || body.miss_quadrants || null;
     const neuralStabilityScore = typeof body.neuralStabilityScore === 'number' ? body.neuralStabilityScore : null;
 
-    // 3. Server-Side Anti-Cheat & Heuristic Evaluation
+    // Compute 4-Quadrant Miss Accumulator (INTEGER Counts, zero raw pixel insertions)
+    const { qTL, qTR, qBL, qBR } = compute4QuadrantMissCounts(body);
+
+    // 3. Anti-Cheat & Heuristic Evaluation
     const inputVelocity = durationSeconds > 0 ? (totalTargets / durationSeconds) : 0;
+    const kps = Number(inputVelocity.toFixed(2));
     const isArithmeticProgression = checkArithmeticProgression(ghostTelemetry);
     const telemetryValidation = validateGhostTelemetry(ghostTelemetry);
 
@@ -223,7 +276,6 @@ export async function POST(request: Request) {
     let integrityFlag = 'HIGH_INTEGRITY';
     let xpEarned = 0;
 
-    // Server-Side XP Formula Calculation (DevTools Score Spoofing Prevention)
     const score = typeof body.score === 'number' ? body.score : (hits * 10 + maxCombo * 5);
     const accuracyMultiplier = accuracyFraction > 0.90 ? 1.5 : 1.0;
     const baseXp = 100 + (score / 10) * accuracyMultiplier;
@@ -232,20 +284,21 @@ export async function POST(request: Request) {
         integrityFlag = 'LOW_INTEGRITY';
         xpEarned = 0;
 
-        // Non-blocking security alert to n8n webhook
-        const n8nWebhookUrl = process.env.N8N_SECURITY_WEBHOOK_URL;
+        const n8nWebhookUrl = process.env.N8N_SCORE_FLAG_WEBHOOK_URL || process.env.N8N_SECURITY_WEBHOOK_URL;
         if (n8nWebhookUrl) {
             const alertPromise = fetch(n8nWebhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    username,
+                    userName: username,
                     userId,
+                    drillName: exerciseId,
                     score,
+                    kps,
+                    reason: flagReason || 'Telemetry Anomaly Detected',
                     is_flagged: 1,
-                    reason: flagReason,
                     hardwareProfile: body.hardwareProfile || body.hardware || 'Unknown HWID',
-                    telemetrySummary: { hits, misses, accuracy: Number(accuracy.toFixed(2)), durationSeconds, inputVelocity: Number(inputVelocity.toFixed(2)) }
+                    telemetrySummary: { hits, misses, accuracy: Number(accuracy.toFixed(2)), durationSeconds, inputVelocity: kps }
                 })
             }).catch(err => console.error('[Anti-Cheat Webhook Error]:', err));
 
@@ -256,7 +309,7 @@ export async function POST(request: Request) {
                     ctxObj.waitUntil(alertPromise);
                 }
             } catch {
-                // Non-Cloudflare fallback
+                // Fallback
             }
         }
     } else {
@@ -266,7 +319,6 @@ export async function POST(request: Request) {
     // 4. Cloudflare D1 Relational Database Operations
     const db = await getDb();
 
-    // Local dev mock fallback if database binding is not present
     if (!db) {
         const progress = getXpProgressWithinLevel(xpEarned);
         return NextResponse.json({
@@ -282,11 +334,12 @@ export async function POST(request: Request) {
     }
 
     try {
-        // Read current user progression stats from D1
+        // Read current skill matrix / progression stats from D1
         const userProgress = await db.prepare(
             `SELECT current_level, total_xp, surgeon_badge_unlocked, vector_lock_badge_unlocked, vanguard_badge_unlocked, total_games,
-                    top_left_misses, top_right_misses, bottom_left_misses, bottom_right_misses
-             FROM user_progression WHERE user_id = ?`
+                    accuracy, flicking, tracking, reaction, consistency, spray_control,
+                    miss_quadrant_top_left, miss_quadrant_top_right, miss_quadrant_bottom_left, miss_quadrant_bottom_right
+             FROM skill_matrices WHERE user_id = ?`
         ).bind(userId).first();
 
         let oldLevel = 1;
@@ -303,7 +356,7 @@ export async function POST(request: Request) {
             oldVanguard = Number(userProgress.vanguard_badge_unlocked) || 0;
         }
 
-        // Check Milestone Badges
+        // Milestone Check
         const normId = exerciseId.toLowerCase().replace(/_/g, '-');
         const isMicroAdjust = normId === 'micro-adjust' || normId === 'micro_adjust';
         const isTracking = normId === 'continuous-tracking' || normId === 'continuous_tracking' || normId === 'tracking-mode';
@@ -318,7 +371,6 @@ export async function POST(request: Request) {
             vectorLockBadgeUnlocked = 1;
         }
 
-        // Calculate XP level progression
         const newTotalXp = oldTotalXp + xpEarned;
         const progress = getXpProgressWithinLevel(newTotalXp);
         const currentLevel = progress.currentLevel;
@@ -326,55 +378,35 @@ export async function POST(request: Request) {
         const xpNeededForNext = progress.xpNeededForNext;
         const levelUp = currentLevel > oldLevel;
 
-        // Calculate XP Factor distribution
         const xpDist = distributeXp(exerciseId, xpEarned);
 
-        // Process 4-Quadrant miss metrics
-        let qTL = 0, qTR = 0, qBL = 0, qBR = 0;
-        if (missQuadrants) {
-            const topLeftVal = missQuadrants.topLeft || missQuadrants.top_left || 0;
-            const topRightVal = missQuadrants.topRight || missQuadrants.top_right || 0;
-            const bottomLeftVal = missQuadrants.bottomLeft || missQuadrants.bottom_left || 0;
-            const bottomRightVal = missQuadrants.bottomRight || missQuadrants.bottom_right || 0;
-            const totalMissCount = topLeftVal + topRightVal + bottomLeftVal + bottomRightVal;
-
-            if (totalMissCount > 0) {
-                qTL = topLeftVal / totalMissCount;
-                qTR = topRightVal / totalMissCount;
-                qBL = bottomLeftVal / totalMissCount;
-                qBR = bottomRightVal / totalMissCount;
-            }
-        }
-
-        const missQuadrantsStr = missQuadrants ? JSON.stringify(missQuadrants) : '{}';
-
-        // Prepare 1: Insert detailed session telemetry entry
+        // Statement 1: Insert session performance log into session_logs
         const stmtTelemetry = db.prepare(`
-            INSERT INTO scores_telemetry (
-                user_id, exercise_id, difficulty, username, ghost_telemetry,
-                hits, misses, accuracy, max_combo, duration_seconds,
-                xp_earned, integrity_flag, is_flagged, flag_reason,
+            INSERT INTO session_logs (
+                user_id, exercise_id, difficulty, username,
+                score, kps, duration, hits, misses, accuracy, max_combo, xp_earned,
+                is_flagged, flag_reason, integrity_flag,
                 average_urgency_index, over_flick_coefficient,
-                top_left_misses, top_right_misses, bottom_left_misses, bottom_right_misses,
-                miss_quadrants, neural_stability_score
+                miss_quadrant_top_left, miss_quadrant_top_right, miss_quadrant_bottom_left, miss_quadrant_bottom_right,
+                ghost_telemetry, neural_stability_score
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
-            userId, exerciseId, difficulty, username, ghostTelemetry,
-            hits, misses, accuracy, maxCombo, durationSeconds,
-            xpEarned, integrityFlag, isFlagged, flagReason,
+            userId, exerciseId, difficulty, username,
+            score, kps, durationSeconds, hits, misses, accuracy, maxCombo, xpEarned,
+            isFlagged, flagReason, integrityFlag,
             averageUrgencyIndex, overFlickCoefficient,
             qTL, qTR, qBL, qBR,
-            missQuadrantsStr, neuralStabilityScore
+            ghostTelemetry, neuralStabilityScore
         );
 
-        // Prepare 2: Atomic upsert of user progression & rolling 4-quadrant miss matrix
+        // Statement 2: Upsert skill_matrices with 4-Quadrant INTEGER miss accumulator increment
         const stmtProgression = db.prepare(`
-            INSERT INTO user_progression (
+            INSERT INTO skill_matrices (
                 user_id, current_level, total_xp, surgeon_badge_unlocked, vector_lock_badge_unlocked, vanguard_badge_unlocked,
-                global_accuracy, total_games, time_played,
+                accuracy, total_games, time_played,
                 xp_flicking, xp_tracking, xp_speed, xp_precision, xp_perception, xp_cognition,
-                top_left_misses, top_right_misses, bottom_left_misses, bottom_right_misses,
+                miss_quadrant_top_left, miss_quadrant_top_right, miss_quadrant_bottom_left, miss_quadrant_bottom_right,
                 last_played_at, updated_at
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -384,7 +416,7 @@ export async function POST(request: Request) {
                 surgeon_badge_unlocked = excluded.surgeon_badge_unlocked,
                 vector_lock_badge_unlocked = excluded.vector_lock_badge_unlocked,
                 vanguard_badge_unlocked = excluded.vanguard_badge_unlocked,
-                global_accuracy = (global_accuracy * total_games + excluded.global_accuracy) / (total_games + 1),
+                accuracy = (accuracy * total_games + excluded.accuracy) / (total_games + 1),
                 time_played = time_played + excluded.time_played,
                 xp_flicking = xp_flicking + excluded.xp_flicking,
                 xp_tracking = xp_tracking + excluded.xp_tracking,
@@ -392,10 +424,10 @@ export async function POST(request: Request) {
                 xp_precision = xp_precision + excluded.xp_precision,
                 xp_perception = xp_perception + excluded.xp_perception,
                 xp_cognition = xp_cognition + excluded.xp_cognition,
-                top_left_misses = CASE WHEN total_games = 0 THEN excluded.top_left_misses ELSE (top_left_misses * 0.8 + excluded.top_left_misses * 0.2) END,
-                top_right_misses = CASE WHEN total_games = 0 THEN excluded.top_right_misses ELSE (top_right_misses * 0.8 + excluded.top_right_misses * 0.2) END,
-                bottom_left_misses = CASE WHEN total_games = 0 THEN excluded.bottom_left_misses ELSE (bottom_left_misses * 0.8 + excluded.bottom_left_misses * 0.2) END,
-                bottom_right_misses = CASE WHEN total_games = 0 THEN excluded.bottom_right_misses ELSE (bottom_right_misses * 0.8 + excluded.bottom_right_misses * 0.2) END,
+                miss_quadrant_top_left = miss_quadrant_top_left + excluded.miss_quadrant_top_left,
+                miss_quadrant_top_right = miss_quadrant_top_right + excluded.miss_quadrant_top_right,
+                miss_quadrant_bottom_left = miss_quadrant_bottom_left + excluded.miss_quadrant_bottom_left,
+                miss_quadrant_bottom_right = miss_quadrant_bottom_right + excluded.miss_quadrant_bottom_right,
                 total_games = total_games + 1,
                 last_played_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
@@ -406,7 +438,7 @@ export async function POST(request: Request) {
             qTL, qTR, qBL, qBR
         );
 
-        // Execute both statements atomically on Cloudflare Edge
+        // Execute batch transaction on Cloudflare D1
         await db.batch([stmtTelemetry, stmtProgression]);
 
         return NextResponse.json({

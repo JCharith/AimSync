@@ -69,6 +69,36 @@ ${logsFormatted}
 
 *Automated issue created by AimSync Aegis Bug Reporter Edge Pipeline.*`;
 
+    // Non-blocking dispatch to n8n Bug Report Webhook pipeline
+    const n8nWebhookUrl = await getEnv('N8N_BUG_REPORT_WEBHOOK_URL');
+    if (n8nWebhookUrl) {
+        const n8nPayload = {
+            description,
+            username,
+            userId,
+            severity,
+            logs,
+            hardwareProfile,
+            timestamp
+        };
+        const n8nPromise = fetch(n8nWebhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(n8nPayload)
+        }).catch(err => console.error('[n8n Bug Report Webhook Error]:', err));
+
+        try {
+            import('@cloudflare/next-on-pages').then(({ getRequestContext }) => {
+                const ctxObj = getRequestContext().ctx;
+                if (ctxObj && typeof ctxObj.waitUntil === 'function') {
+                    ctxObj.waitUntil(n8nPromise);
+                }
+            }).catch(() => {});
+        } catch {
+            // Non-Cloudflare environment fallback
+        }
+    }
+
     const token = await getEnv('GITHUB_PAT') || await getEnv('GITHUB_TOKEN');
     const owner = await getEnv('GITHUB_REPO_OWNER') || 'LogicArchitectDS';
     const repo = await getEnv('GITHUB_REPO_NAME') || 'AimSync';

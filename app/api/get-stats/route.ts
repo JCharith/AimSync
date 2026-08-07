@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { getLevelFromXp } from '@/lib/utils/progressionEngine';
 
-// Force Next.js to use Cloudflare Edge network
+// Force Next.js to use Cloudflare Edge Runtime
 export const runtime = 'edge';
 
 // Helper to retrieve Cloudflare D1 database binding
@@ -43,6 +43,7 @@ export async function GET(request: Request) {
         if (returnFull) {
             return NextResponse.json({
                 radarData: defaultRadarData,
+                skillMatrix: null,
                 progression: null,
                 sessionAverages: null,
                 authenticated: false
@@ -66,8 +67,13 @@ export async function GET(request: Request) {
         if (returnFull) {
             return NextResponse.json({
                 radarData: mockRadarData,
+                skillMatrix: {
+                    accuracy: 94.2, flicking: 12, tracking: 18, reaction: 25, consistency: 15, spray_control: 20,
+                    miss_quadrant_top_left: 10, miss_quadrant_top_right: 15, miss_quadrant_bottom_left: 8, miss_quadrant_bottom_right: 12
+                },
                 progression: { current_level: 15, total_xp: 98000, global_accuracy: 94.2 },
                 sessionAverages: { avg_accuracy: 94.2, avg_urgency: 1.05, neural_stability: 92.0 },
+                authenticated: true,
                 mocked: true
             });
         }
@@ -75,22 +81,22 @@ export async function GET(request: Request) {
     }
 
     try {
-        // 1. Direct fetch from optimized user_progression table in Cloudflare D1
-        let profile = await db
+        // 1. Direct fetch from optimized skill_matrices table in Cloudflare D1
+        let matrix = await db
             .prepare(`
                 SELECT 
-                    current_level, total_xp, global_accuracy, total_games, time_played,
-                    xp_flicking, xp_tracking, xp_speed, xp_precision, xp_perception, xp_cognition,
-                    quadrant_top_left, quadrant_top_right, quadrant_bottom_left, quadrant_bottom_right,
-                    top_left_misses, top_right_misses, bottom_left_misses, bottom_right_misses
-                FROM user_progression 
+                    accuracy, flicking, tracking, reaction, consistency, spray_control,
+                    miss_quadrant_top_left, miss_quadrant_top_right, miss_quadrant_bottom_left, miss_quadrant_bottom_right,
+                    current_level, total_xp, total_games, time_played,
+                    xp_flicking, xp_tracking, xp_speed, xp_precision, xp_perception, xp_cognition
+                FROM skill_matrices 
                 WHERE user_id = ?
             `)
             .bind(userId)
             .first();
 
-        // 2. Dynamic aggregation fallback from scores_telemetry if user_progression record is not populated yet
-        if (!profile) {
+        // 2. If no row exists yet for new player, attempt calculation from session_logs or return baseline
+        if (!matrix) {
             const telemetrySummary = await db
                 .prepare(`
                     SELECT 
@@ -98,14 +104,28 @@ export async function GET(request: Request) {
                         SUM(xp_earned) as total_xp,
                         COUNT(id) as total_games,
                         AVG(accuracy) as avg_accuracy
-                    FROM scores_telemetry 
-                    WHERE user_id = ? AND (integrity_flag IS NULL OR integrity_flag = 'HIGH_INTEGRITY')
+                    FROM session_logs 
+                    WHERE user_id = ? AND (is_flagged = 0 OR is_flagged IS NULL)
                     GROUP BY exercise_id
                 `)
                 .bind(userId)
                 .all();
 
             const rows = telemetrySummary.results || [];
+            if (rows.length === 0) {
+                // New player with no session logs: return default baseline matrix values
+                if (returnFull) {
+                    return NextResponse.json({
+                        radarData: defaultRadarData,
+                        skillMatrix: null,
+                        progression: { current_level: 1, total_xp: 0, global_accuracy: 0.0 },
+                        sessionAverages: null,
+                        authenticated: true
+                    });
+                }
+                return NextResponse.json(defaultRadarData);
+            }
+
             let flickingXp = 0;
             let trackingXp = 0;
             let speedXp = 0;
@@ -149,24 +169,24 @@ export async function GET(request: Request) {
                         precisionXp += primaryXp;
                         flickingXp += secondaryXp;
                         break;
-                    case 'burst-reaction':
-                    case 'jiggle-peek':
-                        speedXp += primaryXp;
-                        flickingXp += secondaryXp;
-                        break;
-                    case 'echolocation':
-                        perceptionXp += primaryXp;
-                        flickingXp += secondaryXp;
-                        break;
                     default:
                         precisionXp += sessionXp;
                 }
             }
 
-            profile = {
+            matrix = {
+                accuracy: 0.0,
+                flicking: getLevelFromXp(flickingXp),
+                tracking: getLevelFromXp(trackingXp),
+                reaction: getLevelFromXp(speedXp),
+                consistency: getLevelFromXp(precisionXp),
+                spray_control: getLevelFromXp(perceptionXp),
+                miss_quadrant_top_left: 0,
+                miss_quadrant_top_right: 0,
+                miss_quadrant_bottom_left: 0,
+                miss_quadrant_bottom_right: 0,
                 current_level: getLevelFromXp(flickingXp + trackingXp + speedXp + precisionXp + perceptionXp + cognitionXp),
                 total_xp: flickingXp + trackingXp + speedXp + precisionXp + perceptionXp + cognitionXp,
-                global_accuracy: 0.0,
                 total_games: 0,
                 time_played: 0,
                 xp_flicking: flickingXp,
@@ -174,26 +194,21 @@ export async function GET(request: Request) {
                 xp_speed: speedXp,
                 xp_precision: precisionXp,
                 xp_perception: perceptionXp,
-                xp_cognition: cognitionXp,
-                quadrant_top_left: 25,
-                quadrant_top_right: 25,
-                quadrant_bottom_left: 25,
-                quadrant_bottom_right: 25
+                xp_cognition: cognitionXp
             };
         }
 
         // 3. Compile discrete RadarProfiler Data Points
         const radarData: RadarDataPoint[] = [
-            { subject: 'Flicking', level: getLevelFromXp(profile.xp_flicking || 0), fullMark: 100 },
-            { subject: 'Tracking', level: getLevelFromXp(profile.xp_tracking || 0), fullMark: 100 },
-            { subject: 'Speed', level: getLevelFromXp(profile.xp_speed || 0), fullMark: 100 },
-            { subject: 'Precision', level: getLevelFromXp(profile.xp_precision || 0), fullMark: 100 },
-            { subject: 'Perception', level: getLevelFromXp(profile.xp_perception || 0), fullMark: 100 },
-            { subject: 'Cognition', level: getLevelFromXp(profile.xp_cognition || 0), fullMark: 100 },
+            { subject: 'Flicking', level: matrix.flicking || getLevelFromXp(matrix.xp_flicking || 0), fullMark: 100 },
+            { subject: 'Tracking', level: matrix.tracking || getLevelFromXp(matrix.xp_tracking || 0), fullMark: 100 },
+            { subject: 'Speed', level: matrix.reaction || getLevelFromXp(matrix.xp_speed || 0), fullMark: 100 },
+            { subject: 'Precision', level: matrix.consistency || getLevelFromXp(matrix.xp_precision || 0), fullMark: 100 },
+            { subject: 'Perception', level: matrix.spray_control || getLevelFromXp(matrix.xp_perception || 0), fullMark: 100 },
+            { subject: 'Cognition', level: getLevelFromXp(matrix.xp_cognition || 0), fullMark: 100 },
         ];
 
         if (returnFull) {
-            // Fetch session averages from telemetry
             const sessionAverages = await db
                 .prepare(`
                     SELECT 
@@ -202,16 +217,18 @@ export async function GET(request: Request) {
                         ROUND(AVG(neural_stability_score), 1) as neural_stability,
                         MAX(max_combo) as peak_combo,
                         COUNT(id) as total_sessions
-                    FROM scores_telemetry
-                    WHERE user_id = ? AND (integrity_flag IS NULL OR integrity_flag = 'HIGH_INTEGRITY')
+                    FROM session_logs
+                    WHERE user_id = ? AND (is_flagged = 0 OR is_flagged IS NULL)
                 `)
                 .bind(userId)
                 .first();
 
             return NextResponse.json({
                 radarData,
-                progression: profile,
-                sessionAverages
+                skillMatrix: matrix,
+                progression: matrix,
+                sessionAverages,
+                authenticated: true
             });
         }
 

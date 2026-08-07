@@ -1,0 +1,169 @@
+[
+  {
+    "name": "AimSync Anti-Cheat & Flagged Score Alert Workflow",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "aimsync-flagged-score",
+          "responseMode": "onReceived",
+          "options": {}
+        },
+        "id": "webhook-score-flag",
+        "name": "Score Flag Webhook Trigger",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1.1,
+        "position": [
+          250,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const input = $input.first().json;\nconst body = input.body || input;\n\nconst userName = body.userName || body.username || 'Unknown Operative';\nconst userId = body.userId || '00000000-0000-0000-0000-000000000000';\nconst drillName = body.drillName || body.exerciseId || 'Unknown Drill';\nconst score = body.score ?? 0;\nconst kps = body.kps ?? body.inputVelocity ?? '0.00';\nconst reason = body.reason || body.flagReason || 'Telemetry Anomaly Detected';\nconst timestamp = new Date().toISOString();\n\nreturn {\n  userName,\n  userId,\n  drillName,\n  score,\n  kps,\n  reason,\n  timestamp\n};"
+        },
+        "id": "format-score-flag-data",
+        "name": "Format Flagged Score Telemetry",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          480,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $env.DISCORD_ADMIN_WEBHOOK_URL || 'https://discord.com/api/webhooks/your-webhook-id/your-webhook-token' }}",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"embeds\": [\n    {\n      \"title\": \"🚨 Flagged Score Detected!\",\n      \"description\": \"An anomalous score run was flagged by the AimSync Security Engine.\",\n      \"color\": 10038562,\n      \"fields\": [\n        {\n          \"name\": \"👤 Player / User ID\",\n          \"value\": \"`{{ $json.userName }}` (`{{ $json.userId }}`)\",\n          \"inline\": true\n        },\n        {\n          \"name\": \"🎯 Drill\",\n          \"value\": \"`{{ $json.drillName }}`\",\n          \"inline\": true\n        },\n        {\n          \"name\": \"🎮 Score\",\n          \"value\": \"**{{ $json.score.toLocaleString() }}**\",\n          \"inline\": true\n        },\n        {\n          \"name\": \"⚡ Keypresses / Sec (KPS)\",\n          \"value\": \"`{{ $json.kps }}` KPS\",\n          \"inline\": true\n        },\n        {\n          \"name\": \"🛡️ Flag Reason\",\n          \"value\": \"`{{ $json.reason }}`\"\n        }\n      ],\n      \"footer\": {\n        \"text\": \"AimSync Security Engine\"\n      },\n      \"timestamp\": \"{{ $json.timestamp }}\"\n    }\n  ]\n}",
+          "options": {}
+        },
+        "id": "discord-flagged-score-alert",
+        "name": "Send Discord Flagged Score Alert",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          710,
+          300
+        ]
+      }
+    ],
+    "connections": {
+      "Score Flag Webhook Trigger": {
+        "main": [
+          [
+            {
+              "node": "Format Flagged Score Telemetry",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Flagged Score Telemetry": {
+        "main": [
+          [
+            {
+              "node": "Send Discord Flagged Score Alert",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1"
+    }
+  },
+  {
+    "name": "AimSync Discord Bug Reporting to GitHub Issues Workflow",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "aimsync-bug-report",
+          "responseMode": "onReceived",
+          "options": {}
+        },
+        "id": "webhook-bug-report",
+        "name": "Bug Report Webhook Trigger",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1.1,
+        "position": [
+          250,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const input = $input.first().json;\nconst body = input.body || input;\n\nconst description = body.description || 'No description provided';\nconst username = body.username || body.userName || 'unknown_agent';\nconst userId = body.userId || '00000000';\nconst severity = (body.severity || 'medium').toLowerCase();\nconst logs = typeof body.logs === 'string' ? body.logs : JSON.stringify(body.logs || {}, null, 2);\nconst hardwareProfile = typeof body.hardwareProfile === 'string' ? body.hardwareProfile : JSON.stringify(body.hardwareProfile || 'Unknown HW', null, 2);\nconst timestamp = body.timestamp || new Date().toISOString();\n\nconst shortDesc = description.length > 50 ? description.substring(0, 47) + '...' : description;\nconst title = `[Bug] ${shortDesc} (via @${username})`;\n\nreturn {\n  title,\n  description,\n  username,\n  userId,\n  severity,\n  logs,\n  hardwareProfile,\n  timestamp\n};"
+        },
+        "id": "format-bug-report-data",
+        "name": "Format Bug Report Payload",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          480,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "resource": "issue",
+          "operation": "create",
+          "owner": "LogicArchitectDS",
+          "repository": "AimSync",
+          "title": "={{ $json.title }}",
+          "body": "### 🐛 Telemetry Bug Report\n\n**Reporter:** @{{ $json.username }} (User ID: `{{ $json.userId }}`)\n**Severity:** `{{ $json.severity.toUpperCase() }}`\n**Timestamp:** `{{ $json.timestamp }}` \n\n---\n### 📝 Description\n{{ $json.description }}\n\n---\n### 💻 Hardware Profile\n```json\n{{ $json.hardwareProfile }}\n```\n\n---\n### 📊 Telemetry Logs\n```json\n{{ $json.logs }}\n```\n\n*Automated issue created by AimSync n8n Engine.*",
+          "labels": [
+            "bug"
+          ]
+        },
+        "id": "github-create-issue",
+        "name": "Create GitHub Bug Issue",
+        "type": "n8n-nodes-base.github",
+        "typeVersion": 1,
+        "position": [
+          710,
+          300
+        ],
+        "credentials": {
+          "githubApi": {
+            "id": "github-credentials",
+            "name": "GitHub OAuth2 / PAT"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Bug Report Webhook Trigger": {
+        "main": [
+          [
+            {
+              "node": "Format Bug Report Payload",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Bug Report Payload": {
+        "main": [
+          [
+            {
+              "node": "Create GitHub Bug Issue",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1"
+    }
+  }
+]

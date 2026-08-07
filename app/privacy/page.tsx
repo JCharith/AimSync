@@ -10,7 +10,7 @@ export default function PrivacyPolicyPage() {
   const lastUpdated = "July 30, 2026";
 
   return (
-    <div className="min-h-screen bg-background text-slate-primary flex flex-col font-sans selection:bg-red/30 selection:text-white">
+    <div className="min-h-screen bg-background text-slate-100 flex flex-col font-sans selection:bg-red/30 selection:text-white">
       {/* ═══ CYBER HEADER / NAVBAR ═══ */}
       <header className="sticky top-0 z-50 bg-black/60 backdrop-blur-md border-b border-white/10 px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">

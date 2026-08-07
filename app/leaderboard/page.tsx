@@ -81,23 +81,24 @@ async function LeaderboardData() {
 
     if (db) {
         try {
+            // Relational D1 query combining session_logs and skill_matrices with SQL sorting
             const result = await db.prepare(`
                 SELECT 
-                    up.user_id,
-                    COALESCE(MAX(st.username), 'Anonymous Player') as username,
-                    up.current_level,
-                    up.total_xp,
-                    COUNT(st.id) as total_sessions,
-                    ROUND(AVG(st.accuracy), 1) as avg_accuracy,
-                    MAX(st.max_combo) as peak_combo,
-                    COUNT(DISTINCT date(st.created_at)) as consistency_days,
-                    ROUND(COALESCE(AVG(st.neural_stability_score), 85.0), 0) as neural_stability,
-                    ROUND(up.total_xp * (AVG(st.accuracy) / 100.0) * (1.0 + (COUNT(st.id) / 100.0)), 0) as ranking_score
-                FROM user_progression up
-                LEFT JOIN scores_telemetry st ON up.user_id = st.user_id
-                WHERE st.integrity_flag IS NULL OR st.integrity_flag = 'HIGH_INTEGRITY'
-                GROUP BY up.user_id, up.current_level, up.total_xp
-                ORDER BY ranking_score DESC
+                    sm.user_id,
+                    COALESCE(u.name, MAX(sl.username), 'Anonymous Player') as username,
+                    sm.current_level,
+                    sm.total_xp,
+                    COUNT(sl.id) as total_sessions,
+                    ROUND(COALESCE(AVG(sl.accuracy), sm.accuracy, 0.0), 1) as avg_accuracy,
+                    COALESCE(MAX(sl.max_combo), 0) as peak_combo,
+                    COUNT(DISTINCT date(sl.created_at)) as consistency_days,
+                    ROUND(COALESCE(AVG(sl.neural_stability_score), 85.0), 0) as neural_stability,
+                    ROUND(sm.total_xp * (COALESCE(AVG(sl.accuracy), sm.accuracy, 50.0) / 100.0) * (1.0 + (COUNT(sl.id) / 100.0)), 0) as ranking_score
+                FROM skill_matrices sm
+                LEFT JOIN users u ON sm.user_id = u.id
+                LEFT JOIN session_logs sl ON sm.user_id = sl.user_id AND (sl.is_flagged = 0 OR sl.is_flagged IS NULL)
+                GROUP BY sm.user_id, sm.current_level, sm.total_xp, u.name
+                ORDER BY ranking_score DESC, avg_accuracy DESC, consistency_days DESC
                 LIMIT 50
             `).all();
 

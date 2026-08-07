@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import StatsAndSocials from "@/components/landing/StatsAndSocials";
+import { LandingFooter } from "@/components/landing/HeroAndFooter";
 
 /* ---------- animated grid canvas ---------- */
 function GridCanvas() {
@@ -499,71 +500,7 @@ export default function Home() {
       </section>
 
       {/* ═══ FOOTER ═══ */}
-      <footer className="relative z-10 border-t border-white/10 bg-black pt-20 pb-10 px-8">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
-          {/* Brand Col */}
-          <div className="space-y-6 col-span-1 md:col-span-2">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 relative flex items-center justify-center">
-                <div className="absolute w-8 h-8 rounded-full border-2 border-red" />
-                <div className="absolute w-1 h-1 rounded-full bg-red" />
-                <div className="absolute w-4 h-px bg-red" />
-                <div className="absolute w-px h-4 bg-red" />
-              </div>
-              <span className="text-2xl font-black uppercase tracking-tighter">
-                <span className="text-white">AIM</span>
-                <span className="text-red">SYNC</span>
-              </span>
-            </Link>
-            <p className="text-sm text-slate-500 leading-relaxed max-w-sm font-medium">
-              The professional browser-based aim trainer. Benchmark, analyze, and improve your aim for free.
-            </p>
-            <Link
-              href="/dashboard"
-              className="inline-block bg-red text-white px-8 py-3 rounded font-black text-xs uppercase tracking-widest hover:bg-red-600 transition-colors"
-            >
-              Start Aim Training
-            </Link>
-          </div>
-
-          {/* Links Col */}
-          <div>
-            <h4 className="text-white text-xs font-black uppercase tracking-widest mb-6">Product</h4>
-            <ul className="space-y-4 text-sm font-bold text-slate-500">
-              <li><Link href="/dashboard" className="hover:text-red transition-colors">The Trainer</Link></li>
-              <li><Link href="/dashboard" className="hover:text-red transition-colors">Benchmarks</Link></li>
-              <li><Link href="/dashboard" className="hover:text-red transition-colors">Analytics</Link></li>
-              <li>
-                <a
-                  href="https://www.patreon.com/aimsync"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-red transition-colors"
-                >
-                  Plus+
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          {/* Legal Col */}
-          <div>
-            <h4 className="text-white text-xs font-black uppercase tracking-widest mb-6">Community</h4>
-            <ul className="space-y-4 text-sm font-bold text-slate-500">
-              <li><a href="https://discord.gg/aimsync" target="_blank" rel="noopener noreferrer" className="hover:text-red transition-colors">Discord</a></li>
-              <li><a href="https://github.com/LogicArchitectDS/AimSync" target="_blank" rel="noopener noreferrer" className="hover:text-red transition-colors">GitHub Docs</a></li>
-              <li><Link href="/terms" className="hover:text-red transition-colors">Terms of Service</Link></li>
-              <li><Link href="/privacy" className="hover:text-red transition-colors">Privacy Policy</Link></li>
-            </ul>
-          </div>
-        </div>
-
-        <div className="max-w-7xl mx-auto pt-8 border-t border-white/10 text-center">
-          <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
-            © {new Date().getFullYear()} AIMSYNC. BUILT FOR GAMING ATHLETES.
-          </p>
-        </div>
-      </footer>
+      <LandingFooter />
 
       {/* Styles */}
       <style>{`
