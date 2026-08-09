@@ -8,9 +8,9 @@ export const runtime = 'edge';
 async function getEnv(key: string): Promise<string | undefined> {
     if (process.env[key]) return process.env[key];
     try {
-        const { getRequestContext } = await import('@cloudflare/next-on-pages');
-        const env = getRequestContext().env as Record<string, any>;
-        return env?.[key];
+        const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+        const { env } = await getCloudflareContext();
+        return (env as Record<string, any>)?.[key];
     } catch {
         return undefined;
     }
@@ -88,8 +88,8 @@ ${logsFormatted}
         }).catch(err => console.error('[n8n Bug Report Webhook Error]:', err));
 
         try {
-            import('@cloudflare/next-on-pages').then(({ getRequestContext }) => {
-                const ctxObj = getRequestContext().ctx;
+            import('@opennextjs/cloudflare').then(async ({ getCloudflareContext }) => {
+                const { ctx: ctxObj } = await getCloudflareContext();
                 if (ctxObj && typeof ctxObj.waitUntil === 'function') {
                     ctxObj.waitUntil(n8nPromise);
                 }

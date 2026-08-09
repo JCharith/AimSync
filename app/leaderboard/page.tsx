@@ -67,8 +67,9 @@ async function getDb(): Promise<any> {
     try {
         const db = (process.env as any).DB;
         if (db) return db;
-        const { getRequestContext } = await import('@cloudflare/next-on-pages');
-        return getRequestContext().env.DB;
+        const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+        const { env } = await getCloudflareContext();
+        return env.DB;
     } catch {
         return null;
     }

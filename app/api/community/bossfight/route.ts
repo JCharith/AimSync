@@ -12,9 +12,10 @@ async function getDb(): Promise<any> {
     try {
         const db = (process.env as any).DB;
         if (db) return db;
-        // Dynamically import getRequestContext to prevent build-time crashes when bundling outside Cloudflare environments
-        const { getRequestContext } = await import('@cloudflare/next-on-pages');
-        return getRequestContext().env.DB;
+        // Dynamically import getCloudflareContext to prevent build-time crashes when bundling outside Cloudflare environments
+        const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+        const { env } = await getCloudflareContext();
+        return env.DB;
     } catch {
         return null;
     }

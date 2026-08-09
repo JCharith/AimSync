@@ -11,8 +11,9 @@ async function getDb(): Promise<any> {
     try {
         const db = (process.env as any).DB;
         if (db) return db;
-        const { getRequestContext } = await import('@cloudflare/next-on-pages');
-        return getRequestContext().env.DB;
+        const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+        const { env } = await getCloudflareContext();
+        return env.DB;
     } catch {
         return null;
     }
@@ -303,8 +304,8 @@ export async function POST(request: Request) {
             }).catch(err => console.error('[Anti-Cheat Webhook Error]:', err));
 
             try {
-                const { getRequestContext } = await import('@cloudflare/next-on-pages');
-                const ctxObj = getRequestContext().ctx;
+                const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+                const { ctx: ctxObj } = await getCloudflareContext();
                 if (ctxObj && typeof ctxObj.waitUntil === 'function') {
                     ctxObj.waitUntil(alertPromise);
                 }
