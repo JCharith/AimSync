@@ -158,4 +158,4 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(userId);
 CREATE INDEX IF NOT EXISTS idx_session_logs_user_id ON session_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_session_logs_created_at ON session_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_session_logs_is_flagged ON session_logs(is_flagged);
-CREATE INDEX IF NOT EXISTS idx_session_logs_exercise ON session_logs(exercise_id);
+CREATE INDEX IF NOT EXISTS idx_session_logs_exercise ON session_logs(exercise_id);wr
