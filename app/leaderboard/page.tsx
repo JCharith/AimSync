@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
+import { getCloudflareDb } from '@/lib/utils/cloudflare';
 
 export const runtime = 'edge';
 
@@ -63,17 +64,7 @@ const MOCK_LEADERBOARD: LeaderboardEntry[] = [
     { user_id: 'usr-7', username: 'Kovaak_Reflex', current_level: 22, total_xp: 45000, total_sessions: 92, avg_accuracy: 88.0, peak_combo: 59, consistency_days: 4, neural_stability: 82, ranking_score: 58200 },
 ];
 
-async function getDb(): Promise<any> {
-    try {
-        const db = (process.env as any).DB;
-        if (db) return db;
-        const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-        const { env } = await getCloudflareContext();
-        return env.DB;
-    } catch {
-        return null;
-    }
-}
+const getDb = getCloudflareDb;
 
 // --- DYNAMIC D1 DATA LOADER ---
 async function LeaderboardData() {

@@ -2,22 +2,13 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { getXpProgressWithinLevel } from '@/lib/utils/progressionEngine';
 import { distributeXp } from '@/lib/utils/statsService';
+import { getCloudflareDb } from '@/lib/utils/cloudflare';
 
 // Force Next.js to run on Cloudflare Edge network layer for zero-latency operations
 export const runtime = 'edge';
 
 // Helper: Get Cloudflare D1 database binding at runtime
-async function getDb(): Promise<any> {
-    try {
-        const db = (process.env as any).DB;
-        if (db) return db;
-        const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-        const { env } = await getCloudflareContext();
-        return env.DB;
-    } catch {
-        return null;
-    }
-}
+const getDb = getCloudflareDb;
 
 // Edge HMAC-SHA256 Verification to validate session headers against server secret
 async function verifyHmacSha256(message: string, signature: string, secretKey: string): Promise<boolean> {

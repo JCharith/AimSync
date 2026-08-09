@@ -2,22 +2,13 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { getLevelFromXp, getXpProgressWithinLevel } from '@/lib/utils/progressionEngine';
 import { distributeXp } from '@/lib/utils/statsService';
+import { getCloudflareDb } from '@/lib/utils/cloudflare';
 
 // Force Next.js to use Cloudflare's Edge network for zero-latency database calls
 export const runtime = 'edge';
 
-// Helper: get D1 binding at runtime (checks process.env and fallback to getRequestContext)
-async function getDb(): Promise<any> {
-    try {
-        const db = (process.env as any).DB;
-        if (db) return db;
-        const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-        const { env } = await getCloudflareContext();
-        return env.DB;
-    } catch {
-        return null;
-    }
-}
+// Helper: get D1 binding at runtime using standardized OpenNext Cloudflare context
+const getDb = getCloudflareDb;
 
 // Helper: Compute 4-Quadrant Miss Counts (INTEGER Counts)
 function compute4QuadrantMissCounts(payload: any): { qTL: number; qTR: number; qBL: number; qBR: number } {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
+import { getCloudflareEnv } from '@/lib/utils/cloudflare';
 
 // Force Next.js to use Cloudflare's Edge network
 export const runtime = 'edge';
@@ -7,13 +8,8 @@ export const runtime = 'edge';
 // Helper: get environment variables across process.env and Cloudflare request context
 async function getEnv(key: string): Promise<string | undefined> {
     if (process.env[key]) return process.env[key];
-    try {
-        const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-        const { env } = await getCloudflareContext();
-        return (env as Record<string, any>)?.[key];
-    } catch {
-        return undefined;
-    }
+    const cfEnv = await getCloudflareEnv();
+    return (cfEnv as Record<string, any>)?.[key];
 }
 
 export async function POST(request: Request) {

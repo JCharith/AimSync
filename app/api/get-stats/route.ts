@@ -1,22 +1,13 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { getLevelFromXp } from '@/lib/utils/progressionEngine';
+import { getCloudflareDb } from '@/lib/utils/cloudflare';
 
 // Force Next.js to use Cloudflare Edge Runtime
 export const runtime = 'edge';
 
 // Helper to retrieve Cloudflare D1 database binding
-async function getDb(): Promise<any> {
-    try {
-        const db = (process.env as any).DB;
-        if (db) return db;
-        const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-        const { env } = await getCloudflareContext();
-        return env.DB;
-    } catch {
-        return null;
-    }
-}
+const getDb = getCloudflareDb;
 
 export interface RadarDataPoint {
     subject: string;

@@ -1,25 +1,11 @@
 import { NextResponse } from 'next/server';
+import { getCloudflareDb } from '@/lib/utils/cloudflare';
 
 // Set the runtime configuration to 'edge' to ensure ultra-low latency response
 // and full compatibility with Cloudflare Pages/Workers serverless deployment.
 export const runtime = 'edge';
 
-/**
- * Retrieves the Cloudflare D1 SQL database instance.
- * Dynamically handles local development mock context as well as Edge request environment bindings.
- */
-async function getDb(): Promise<any> {
-    try {
-        const db = (process.env as any).DB;
-        if (db) return db;
-        // Dynamically import getCloudflareContext to prevent build-time crashes when bundling outside Cloudflare environments
-        const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-        const { env } = await getCloudflareContext();
-        return env.DB;
-    } catch {
-        return null;
-    }
-}
+const getDb = getCloudflareDb;
 
 /**
  * GET Handler: Fetches the community's combined weekend progress.

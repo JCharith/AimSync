@@ -1,18 +1,9 @@
 import { NextResponse } from 'next/server';
+import { getCloudflareDb } from '@/lib/utils/cloudflare';
 
 export const runtime = 'edge';
 
-async function getDb(): Promise<any> {
-    try {
-        const db = (process.env as any).DB;
-        if (db) return db;
-        const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-        const { env } = await getCloudflareContext();
-        return env.DB;
-    } catch {
-        return null;
-    }
-}
+const getDb = getCloudflareDb;
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
