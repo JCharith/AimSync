@@ -2,10 +2,22 @@
 -- AimSync Cloudflare D1 Relational Database Schema
 -- Production-Ready Schema supporting Auth.js, Session Telemetry,
 -- Rolling Skill Matrices, 4-Quadrant Miss Averages, & Anti-Cheat Triggers
---
--- Wrangler Deployment Command:
--- wrangler d1 execute aimsync-db --remote --file=./schema.sql
 -- ====================================================================
+
+PRAGMA foreign_keys = ON;
+
+-- --------------------------------------------------------------------
+-- Clean Drop Section (Correct Object Types & Cascade Order)
+-- --------------------------------------------------------------------
+DROP VIEW IF EXISTS drill_sessions;
+DROP VIEW IF EXISTS user_stats_view;
+
+DROP TABLE IF EXISTS session_logs;
+DROP TABLE IF EXISTS user_progression;
+DROP TABLE IF EXISTS verification_tokens;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS accounts;
+DROP TABLE IF EXISTS users;
 
 -- --------------------------------------------------------------------
 -- 1. Auth.js Core Authentication Tables (Discord OAuth)
@@ -46,142 +58,72 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE TABLE IF NOT EXISTS verification_tokens (
     identifier TEXT NOT NULL,
-    token TEXT NOT NULL,
+    token TEXT NOT NULL UNIQUE,
     expires DATETIME NOT NULL,
     PRIMARY KEY (identifier, token)
 );
 
 -- --------------------------------------------------------------------
--- 2. Radar Profiles & Rolling Skill Matrices
+-- 2. User Progression & Skill Matrix Table
 -- --------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS skill_matrices (
+CREATE TABLE IF NOT EXISTS user_progression (
     user_id TEXT PRIMARY KEY,
-    
-    -- Radar Profiles & Key Skill Attributes
-    accuracy REAL DEFAULT 0.0,
-    flicking REAL DEFAULT 0.0,
-    tracking REAL DEFAULT 0.0,
-    reaction REAL DEFAULT 0.0,
-    consistency REAL DEFAULT 0.0,
-    spray_control REAL DEFAULT 0.0,
-
-    -- Rolling 4-Quadrant Miss Tracking (Aggregated INTEGER Columns)
-    miss_quadrant_top_left INTEGER DEFAULT 0,
-    miss_quadrant_top_right INTEGER DEFAULT 0,
-    miss_quadrant_bottom_left INTEGER DEFAULT 0,
-    miss_quadrant_bottom_right INTEGER DEFAULT 0,
-
-    -- Leveling & Progression Metrics
-    current_level INTEGER DEFAULT 1,
-    total_xp INTEGER DEFAULT 0,
-    xp_flicking INTEGER DEFAULT 0,
-    xp_tracking INTEGER DEFAULT 0,
-    xp_speed INTEGER DEFAULT 0,
-    xp_precision INTEGER DEFAULT 0,
-    xp_perception INTEGER DEFAULT 0,
-    xp_cognition INTEGER DEFAULT 0,
-
-    -- Unlock Badges
-    surgeon_badge_unlocked INTEGER DEFAULT 0,
-    vector_lock_badge_unlocked INTEGER DEFAULT 0,
-    vanguard_badge_unlocked INTEGER DEFAULT 0,
-
-    -- Aggregated Session Totals
-    total_games INTEGER DEFAULT 0,
-    time_played INTEGER DEFAULT 0,
-    modes_data TEXT DEFAULT '{}',
-    playlists TEXT DEFAULT '[]',
-
-    last_played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    xp INTEGER DEFAULT 0,
+    level INTEGER DEFAULT 1,
+    flick_xp INTEGER DEFAULT 0,
+    tracking_xp INTEGER DEFAULT 0,
+    precision_xp INTEGER DEFAULT 0,
+    speed_xp INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- --------------------------------------------------------------------
--- 3. Session Performance & Telemetry Logs
+-- 3. Telemetry Session Logs & Anti-Cheat Metrics Table
 -- --------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS session_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     exercise_id TEXT NOT NULL,
-    difficulty TEXT DEFAULT 'medium',
+    mode_id TEXT,
+    difficulty TEXT DEFAULT 'STANDARD',
     username TEXT,
-    
-    -- Performance Metrics
-    score INTEGER NOT NULL DEFAULT 0,
-    kps REAL NOT NULL DEFAULT 0.0,
-    duration INTEGER NOT NULL DEFAULT 0,
-    hits INTEGER NOT NULL DEFAULT 0,
-    misses INTEGER NOT NULL DEFAULT 0,
-    accuracy REAL NOT NULL DEFAULT 0.0,
-    max_combo INTEGER NOT NULL DEFAULT 0,
-    xp_earned INTEGER NOT NULL DEFAULT 0,
-
-    -- Anti-Cheat Integrity Triggers
-    is_flagged INTEGER NOT NULL DEFAULT 0,           -- 0 = clean run, 1 = flagged for review
-    flag_reason TEXT DEFAULT NULL,                   -- Anti-cheat trigger explanation
-    integrity_flag TEXT NOT NULL DEFAULT 'HIGH_INTEGRITY', -- HIGH_INTEGRITY | LOW_INTEGRITY
-
-    -- Kinematic Analytics
-    average_urgency_index REAL DEFAULT 1.0,
-    over_flick_coefficient REAL DEFAULT 1.0,
-    
-    -- Session 4-Quadrant Miss Counts
+    score INTEGER NOT NULL,
+    hits INTEGER NOT NULL,
+    misses INTEGER NOT NULL,
+    accuracy REAL NOT NULL,
+    max_combo INTEGER DEFAULT 0,
+    duration INTEGER NOT NULL,
+    kps REAL DEFAULT 0.0,
+    xp_earned INTEGER DEFAULT 0,
+    ghost_telemetry TEXT,
+    integrity_flag INTEGER DEFAULT 1,
+    is_flagged INTEGER DEFAULT 0,
+    flag_reason TEXT,
+    average_urgency_index REAL DEFAULT 0.0,
+    over_flick_coefficient REAL DEFAULT 0.0,
     miss_quadrant_top_left INTEGER DEFAULT 0,
     miss_quadrant_top_right INTEGER DEFAULT 0,
     miss_quadrant_bottom_left INTEGER DEFAULT 0,
     miss_quadrant_bottom_right INTEGER DEFAULT 0,
-
-    ghost_telemetry TEXT DEFAULT NULL,               -- Delta-compressed kinematic JSON stream
-    neural_stability_score REAL DEFAULT NULL,
+    neural_stability_score REAL DEFAULT 0.0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES skill_matrices(user_id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- --------------------------------------------------------------------
--- 4. Backward Compatibility Views
+-- 4. Views
 -- --------------------------------------------------------------------
 
-DROP VIEW IF EXISTS user_progression;
-CREATE VIEW user_progression AS 
+CREATE VIEW IF NOT EXISTS drill_sessions AS 
 SELECT 
-    user_id,
-    current_level,
-    total_xp,
-    surgeon_badge_unlocked,
-    vector_lock_badge_unlocked,
-    vanguard_badge_unlocked,
-    accuracy AS global_accuracy,
-    total_games,
-    time_played,
-    modes_data,
-    playlists,
-    xp_flicking,
-    xp_tracking,
-    xp_speed,
-    xp_precision,
-    xp_perception,
-    xp_cognition,
-    miss_quadrant_top_left AS top_left_misses,
-    miss_quadrant_top_right AS top_right_misses,
-    miss_quadrant_bottom_left AS bottom_left_misses,
-    miss_quadrant_bottom_right AS bottom_right_misses,
-    miss_quadrant_top_left AS quadrant_top_left,
-    miss_quadrant_top_right AS quadrant_top_right,
-    miss_quadrant_bottom_left AS quadrant_bottom_left,
-    miss_quadrant_bottom_right AS quadrant_bottom_right,
-    last_played_at,
-    updated_at
-FROM skill_matrices;
-
-DROP VIEW IF EXISTS scores_telemetry;
-CREATE VIEW scores_telemetry AS
-SELECT
     id,
     user_id,
     exercise_id,
+    mode_id,
     difficulty,
     username,
     ghost_telemetry,
@@ -207,11 +149,8 @@ SELECT
     created_at
 FROM session_logs;
 
-DROP VIEW IF EXISTS drill_sessions;
-CREATE VIEW drill_sessions AS SELECT * FROM session_logs;
-
 -- --------------------------------------------------------------------
--- 5. High-Performance Relational Indexes
+-- 5. Relational Indexes
 -- --------------------------------------------------------------------
 
 CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(userId);
@@ -220,5 +159,3 @@ CREATE INDEX IF NOT EXISTS idx_session_logs_user_id ON session_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_session_logs_created_at ON session_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_session_logs_is_flagged ON session_logs(is_flagged);
 CREATE INDEX IF NOT EXISTS idx_session_logs_exercise ON session_logs(exercise_id);
-CREATE INDEX IF NOT EXISTS idx_skill_matrices_level ON skill_matrices(current_level DESC);
-CREATE INDEX IF NOT EXISTS idx_skill_matrices_xp ON skill_matrices(total_xp DESC);
