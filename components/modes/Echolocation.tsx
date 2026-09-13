@@ -284,11 +284,13 @@ export default function Echolocation({ overrideSettings, onFinish }: Echolocatio
         const y = newDistance * Math.sin(pitchRad);
         const z = -newDistance * Math.cos(yawRad) * Math.cos(pitchRad);
 
+        const ttl = config.targetLifetimeMs * 1.5;
         const newTarget: SphericalTarget = {
             id: Math.random().toString(),
             x, y, z,
             radius: baseRadius,
             spawnedAt: performance.now(),
+            timeToLive: ttl,
             distance: newDistance,
         };
 
@@ -298,9 +300,10 @@ export default function Echolocation({ overrideSettings, onFinish }: Echolocatio
 
         engine.addTimeout(() => {
             if (engine.sessionIdxRef.current !== currentSession) return;
+            setTarget(null);
             engine.incrementTimeoutMiss(config.missPenalty);
             spawnTarget();
-        }, config.targetLifetimeMs * 1.5);
+        }, newTarget.timeToLive || 800);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [config, effectiveDifficulty, engine.dimensions, engine.duration, engine.incrementSpawned, engine.incrementTimeoutMiss]);
 

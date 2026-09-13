@@ -78,7 +78,8 @@ export default function TargetSwitch({ overrideSettings, onFinish }: TargetSwitc
         const elapsedSec = (performance.now() - sessionStartRef.current) / 1000;
         const radius = getScaledRadius(config.targetRadius, effectiveDifficulty, elapsedSec, effectiveDuration);
         
-        const wave = createTargetSwitchWave(effectiveDifficulty, dimensionsRef.current.width, dimensionsRef.current.height, radius);
+        const ttl = config.targetLifetimeMs * 1.5;
+        const wave = createTargetSwitchWave(effectiveDifficulty, dimensionsRef.current.width, dimensionsRef.current.height, radius, ttl);
         const correctTarget = wave.find(t => t.isCorrect);
         if (correctTarget) {
             activeTargetId.current = correctTarget.id;
@@ -89,12 +90,13 @@ export default function TargetSwitch({ overrideSettings, onFinish }: TargetSwitc
         timeoutRef.current = window.setTimeout(() => {
             if (sessionIdxRef.current !== currentSession) return;
             
+            setTargets([]);
             setMisses((prev) => prev + 1);
             setMissedByTimeout((prev) => prev + 1);
             setCombo(0);
             setScore((prev) => Math.max(0, prev - config.missPenalty));
             spawnWave();
-        }, config.targetLifetimeMs * 1.5);
+        }, ttl);
     };
 
     const resetState = () => {

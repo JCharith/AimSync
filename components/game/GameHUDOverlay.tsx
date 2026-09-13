@@ -19,7 +19,13 @@ declare global {
     }
 }
 
-export const GameHUDOverlay = forwardRef<GameHUDOverlayRef, {}>((_, ref) => {
+export interface GameHUDOverlayProps {
+    isActive?: boolean;
+    gameState?: 'menu' | 'countdown' | 'live' | 'finished' | 'ACTIVE' | string;
+}
+
+export const GameHUDOverlay = forwardRef<GameHUDOverlayRef, GameHUDOverlayProps>((props, ref) => {
+    const isZenActive = props.isActive === true || props.gameState === 'ACTIVE' || props.gameState === 'live';
     // DOM references for Zero React Re-render updates
     const ammoFillRef = useRef<HTMLDivElement>(null);
     const ammoTextRef = useRef<HTMLSpanElement>(null);
@@ -312,10 +318,10 @@ export const GameHUDOverlay = forwardRef<GameHUDOverlayRef, {}>((_, ref) => {
     return (
         <div className="absolute inset-0 w-full h-full pointer-events-none select-none z-40 overflow-hidden font-sans">
             {/* Cyberpunk Grid/Glow Ambient Overlay */}
-            <div className="absolute inset-0 bg-[#050505]/20 bg-[linear-gradient(to_right,#ffffff02_1px,transparent_1px),linear-gradient(to_bottom,#ffffff02_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
+            <div className={`absolute inset-0 bg-[#050505]/20 bg-[linear-gradient(to_right,#ffffff02_1px,transparent_1px),linear-gradient(to_bottom,#ffffff02_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none transition-opacity duration-300 ${isZenActive ? 'opacity-0' : 'opacity-100'}`} />
             
             {/* Subtle Screen Brackets (Cyber-tactical Neon Accents using vector sprites) */}
-            <div className="absolute inset-x-8 inset-y-8 border border-zinc-800/20 pointer-events-none">
+            <div className={`absolute inset-x-8 inset-y-8 border border-zinc-800/20 pointer-events-none transition-opacity duration-300 ${isZenActive ? 'opacity-0' : 'opacity-100'}`}>
                 {/* Top-Left Bracket */}
                 <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-cyan-500/40 pointer-events-none filter drop-shadow(0 0 6px rgba(6,182,212,0.4))" />
                 {/* Top-Right Bracket */}
@@ -326,11 +332,11 @@ export const GameHUDOverlay = forwardRef<GameHUDOverlayRef, {}>((_, ref) => {
                 <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-cyan-500/40 pointer-events-none filter drop-shadow(0 0 6px rgba(6,182,212,0.4))" />
             </div>
 
-            {/* TOP HEADER: Timer and Telemetry Stats */}
+            {/* TOP HEADER: Zen Mode Minimalist Timer & Score */}
             <div className="absolute top-6 inset-x-8 flex justify-between items-start">
                 
                 {/* Left Side: System Telemetry */}
-                <div className="flex flex-col gap-1 bg-black/60 border border-zinc-800/80 px-4 py-2 backdrop-blur-md rounded-sm">
+                <div className={`flex flex-col gap-1 bg-black/60 border border-zinc-800/80 px-4 py-2 backdrop-blur-md rounded-sm transition-opacity duration-300 ${isZenActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                     <span className="text-[9px] text-zinc-500 font-mono tracking-widest uppercase">Target Telemetry</span>
                     <div className="flex gap-4 text-xs font-mono text-zinc-300">
                         <div>SCORE: <span ref={scoreValRef} className="text-cyan-400 font-black font-mono">0</span></div>
@@ -343,23 +349,27 @@ export const GameHUDOverlay = forwardRef<GameHUDOverlayRef, {}>((_, ref) => {
                     </div>
                 </div>
 
-                {/* Center: Mission Clock */}
+                {/* Center: Mission Clock (Zen Mode Minimalist Low-Opacity Bar) */}
                 <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center">
-                    <div className="flex flex-col items-center bg-black/80 px-8 py-2 border border-zinc-800 rounded-sm shadow-2xl relative overflow-hidden">
-                        {/* Neon border line using drop-shadow vector sprite instead of box-shadow */}
-                        <div className="absolute bottom-0 inset-x-0 h-[1.5px] bg-amber-500/80 filter drop-shadow(0 0 4px rgba(245,158,11,0.8))" />
-                        <span className="text-[9px] text-zinc-500 font-mono tracking-[0.25em] uppercase">Session Timer</span>
-                        <span 
-                            ref={timerTextRef}
-                            className="text-4xl font-black font-mono text-amber-500 tabular-nums select-none filter drop-shadow(0 0 8px rgba(245,158,11,0.4))"
-                        >
-                            00:00
-                        </span>
+                    <div className={`flex items-center gap-6 bg-black/70 px-6 py-1.5 border border-zinc-800/80 rounded-full shadow-2xl relative overflow-hidden transition-opacity duration-300 ${isZenActive ? 'opacity-40 hover:opacity-100' : 'opacity-100'}`}>
+                        <div className="text-xs font-mono text-zinc-400 tracking-wider">
+                            SCORE: <span ref={scoreValRef} className="text-white font-bold font-mono">0</span>
+                        </div>
+                        <div className="w-px h-3 bg-zinc-700" />
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] text-zinc-400 font-mono tracking-widest uppercase">TIME</span>
+                            <span 
+                                ref={timerTextRef}
+                                className="text-lg font-black font-mono text-amber-500 tabular-nums select-none filter drop-shadow(0 0 6px rgba(245,158,11,0.4))"
+                            >
+                                00:00
+                            </span>
+                        </div>
                     </div>
                 </div>
 
                 {/* Right Side: Throttled Diagnostics & Killfeed Mount */}
-                <div className="flex flex-col items-end gap-2">
+                <div className={`flex flex-col items-end gap-2 transition-opacity duration-300 ${isZenActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                     <div ref={diagnosticTextRef} className="bg-black/60 border border-zinc-800/80 px-3 py-1.5 backdrop-blur-md rounded-sm" />
                 </div>
             </div>
@@ -367,7 +377,7 @@ export const GameHUDOverlay = forwardRef<GameHUDOverlayRef, {}>((_, ref) => {
             {/* KILLFEED: Renders in upper right below header */}
             <div 
                 ref={killfeedRef} 
-                className="absolute top-24 right-8 flex flex-col gap-1.5 items-end pointer-events-none"
+                className={`absolute top-24 right-8 flex flex-col gap-1.5 items-end pointer-events-none transition-opacity duration-300 ${isZenActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
             />
 
             {/* FLOATING COMBO POPUPS CONTAINER */}
@@ -408,7 +418,7 @@ export const GameHUDOverlay = forwardRef<GameHUDOverlayRef, {}>((_, ref) => {
             {/* BOTTOM LEFT: Dynamic Combo Tracker (Arkham Style) */}
             <div 
                 ref={comboMeterRef}
-                className="absolute bottom-10 left-8 flex flex-col pointer-events-none z-50 opacity-0 transform translate-y-4 scale-95"
+                className={`absolute bottom-10 left-8 flex flex-col pointer-events-none z-50 opacity-0 transform translate-y-4 scale-95 transition-opacity duration-300 ${isZenActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                 style={{
                     willChange: 'transform, opacity',
                     transition: 'transform 120ms cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 150ms ease-out',
@@ -442,7 +452,7 @@ export const GameHUDOverlay = forwardRef<GameHUDOverlayRef, {}>((_, ref) => {
             </div>
 
             {/* BOTTOM RIGHT: Rapid-Fire Ammo Cell */}
-            <div className="absolute bottom-10 right-8 flex flex-col items-end pointer-events-none z-50 bg-black/60 border border-zinc-800/80 px-5 py-3 rounded-sm backdrop-blur-md">
+            <div className={`absolute bottom-10 right-8 flex flex-col items-end pointer-events-none z-50 bg-black/60 border border-zinc-800/80 px-5 py-3 rounded-sm backdrop-blur-md transition-opacity duration-300 ${isZenActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                 <span className="text-[9px] text-zinc-500 font-mono tracking-widest uppercase mb-1">Weapon Magazine</span>
                 <div className="flex items-center gap-3">
                     <div className="w-40 h-2 bg-zinc-950/80 border border-zinc-800/80 rounded-sm skew-x-[-15deg] overflow-hidden relative">

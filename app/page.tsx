@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import Logo from "@/components/ui/Logo";
 import { useEffect, useRef } from "react";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import StatsAndSocials from "@/components/landing/StatsAndSocials";
@@ -184,18 +185,8 @@ export default function Home() {
         {/* ── NAVBAR ── */}
         <nav className="relative z-50 flex items-center justify-between px-8 py-5 w-full bg-black/40 backdrop-blur-md border-b border-white/5">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            {/* Crosshair icon */}
-            <div className="w-8 h-8 relative flex items-center justify-center">
-              <div className="absolute w-8 h-8 rounded-full border-2 border-red" />
-              <div className="absolute w-1 h-1 rounded-full bg-red" />
-              <div className="absolute w-4 h-px bg-red" />
-              <div className="absolute w-px h-4 bg-red" />
-            </div>
-            <span className="text-lg font-black uppercase tracking-tight">
-              <span className="text-white">AIM</span>
-              <span className="text-red">SYNC</span>
-            </span>
+          <Link href="/" className="inline-flex items-center">
+            <Logo size={32} showText={true} />
           </Link>
 
           {/* Nav links */}

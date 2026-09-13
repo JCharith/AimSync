@@ -62,6 +62,7 @@ export default function FlickBenchmark({ onFinish }: FlickBenchmarkProps) {
             engine.dimensions.height,
             radius
         );
+        next.timeToLive = benchmarkConfig.targetLifetimeMs;
         activeTargetId.current = next.id;
         setTarget(next);
         engine.incrementSpawned();
@@ -75,10 +76,11 @@ export default function FlickBenchmark({ onFinish }: FlickBenchmarkProps) {
 
         engine.addTimeout(() => {
             if (engine.sessionIdxRef.current !== currentSession) return;
+            setTarget(null);
             kinematics.discardTarget(next.id);
             engine.incrementTimeoutMiss(benchmarkConfig.missPenalty);
             spawnTarget();
-        }, benchmarkConfig.targetLifetimeMs);
+        }, next.timeToLive || 800);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [benchmarkConfig, difficulty, engine.dimensions, engine.incrementSpawned, engine.incrementTimeoutMiss]);
 

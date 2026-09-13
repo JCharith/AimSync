@@ -10,9 +10,14 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "AimSync | Real-Time FPS Aim Training",
-  description: "A browser-based aim training system for structured mechanical improvement.",
+  title: "AimSync | Tactical FPS Aim Trainer",
+  description: "High-performance edge-native tactical aim trainer.",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/images/logo.png",
+    shortcut: "/images/logo.png",
+    apple: "/images/logo.png",
+  },
 };
 
 export default function RootLayout({

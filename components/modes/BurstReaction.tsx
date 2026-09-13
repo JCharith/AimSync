@@ -50,6 +50,8 @@ export default function BurstReaction({ overrideSettings, onFinish }: BurstReact
         const newCluster: BaseTarget[] = [];
         activeTargetIds.current.clear();
 
+        const clusterLifetime = Math.max(800, config.targetLifetimeMs * 1.5);
+
         for (let i = 0; i < clusterSize; i++) {
             let next = createBurstTarget(engine.dimensions.width, engine.dimensions.height, radius);
             let attempts = 0;
@@ -57,6 +59,7 @@ export default function BurstReaction({ overrideSettings, onFinish }: BurstReact
                 next = createBurstTarget(engine.dimensions.width, engine.dimensions.height, radius);
                 attempts++;
             }
+            next.timeToLive = clusterLifetime;
             newCluster.push(next);
             activeTargetIds.current.add(next.id);
         }
@@ -66,8 +69,6 @@ export default function BurstReaction({ overrideSettings, onFinish }: BurstReact
         for (let i = 0; i < clusterSize; i++) {
             engine.incrementSpawned();
         }
-
-        const clusterLifetime = Math.max(800, config.targetLifetimeMs * 1.5);
 
         engine.addTimeout(() => {
             if (engine.sessionIdxRef.current !== currentSession) return;

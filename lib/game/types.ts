@@ -7,6 +7,7 @@ export interface BaseTarget {
     y: number;
     radius: number;
     spawnedAt: number; // performance.now() timestamp
+    timeToLive?: number; // Time-To-Live duration in ms (e.g., 800ms)
 }
 
 export interface MovingTarget extends BaseTarget {

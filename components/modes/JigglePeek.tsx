@@ -79,7 +79,7 @@ export default function JigglePeek({ overrideSettings, onFinish }: JigglePeekPro
         osc.frequency.setValueAtTime(110, ctx.currentTime);
         osc.frequency.linearRampToValueAtTime(70, ctx.currentTime + 0.18);
 
-        gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+        gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
         gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
 
         osc.connect(gainNode);
@@ -99,7 +99,7 @@ export default function JigglePeek({ overrideSettings, onFinish }: JigglePeekPro
         osc.frequency.setValueAtTime(600, ctx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.08);
 
-        gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+        gainNode.gain.setValueAtTime(0.4, ctx.currentTime);
         gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
 
         osc.connect(gainNode);
@@ -166,6 +166,8 @@ export default function JigglePeek({ overrideSettings, onFinish }: JigglePeekPro
             status: "hidden"
         };
 
+        const ttl = config.targetLifetimeMs || 800;
+        (nextTarget as any).timeToLive = ttl;
         targetRef.current = nextTarget;
         setTarget(nextTarget);
         engine.incrementSpawned();
@@ -173,12 +175,14 @@ export default function JigglePeek({ overrideSettings, onFinish }: JigglePeekPro
         // Queue first peek
         scheduleNextPeek(nextTarget, currentSession);
 
-        // Max target duration to prevent waiting forever
+        // Target TTL timeout to unmount and register miss
         engine.addTimeout(() => {
             if (engine.sessionIdxRef.current !== currentSession) return;
+            setTarget(null);
+            targetRef.current = null;
             engine.incrementTimeoutMiss(config.missPenalty);
             spawnTarget();
-        }, 8000);
+        }, ttl);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [config, effectiveDifficulty, engine.dimensions, engine.duration, engine.incrementSpawned, engine.incrementTimeoutMiss]);
 

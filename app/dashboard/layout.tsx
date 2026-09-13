@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import Logo from "@/components/ui/Logo";
 import { StorageEngine } from "@/lib/utils/storage";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import type { UserStats } from "@/lib/game/types";
@@ -68,17 +69,8 @@ function DashboardHeader() {
     return (
         <header className="relative z-50 flex items-center justify-between w-full border-b border-white/5 bg-surface/40 backdrop-blur-xl px-8 py-4 mb-8">
             <div className="flex items-center gap-8">
-                <Link href="/" className="flex items-center gap-2 group">
-                    <div className="w-8 h-8 relative flex items-center justify-center transition-transform group-hover:scale-110">
-                        <div className="absolute w-8 h-8 rounded-full border-2 border-red" />
-                        <div className="absolute w-1 h-1 rounded-full bg-red" />
-                        <div className="absolute w-4 h-px bg-red" />
-                        <div className="absolute w-px h-4 bg-red" />
-                    </div>
-                    <span className="text-xl font-black uppercase tracking-tighter">
-                        <span className="text-text-primary">AIM</span>
-                        <span className="text-red">SYNC</span>
-                    </span>
+                <Link href="/" className="inline-flex items-center group">
+                    <Logo size={32} showText={true} />
                 </Link>
 
                 {/* Top Nav Tabs like KovaaKs/AimLab */}

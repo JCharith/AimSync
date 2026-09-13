@@ -308,11 +308,13 @@ export default function ConsistencyCheck({ overrideSettings, onFinish }: Consist
 
         targetTrailRef.current = [];
 
+        const ttl = config.targetLifetimeMs + 1000;
         const baseTarget = createTrackingTarget(
             effectiveDifficulty,
             engine.dimensions.width,
             engine.dimensions.height,
-            radius
+            radius,
+            ttl
         );
 
         targetRef.current = { ...baseTarget, health: 100, isBeingTracked: false };
@@ -321,9 +323,10 @@ export default function ConsistencyCheck({ overrideSettings, onFinish }: Consist
 
         engine.addTimeout(() => {
             if (!engine.isMountedRef.current || engine.sessionIdxRef.current !== currentSession) return;
+            targetRef.current = null;
             engine.incrementTimeoutMiss(config.missPenalty);
             spawnTarget();
-        }, config.targetLifetimeMs + 1000);
+        }, ttl);
     }, [config, effectiveDifficulty, engine, startTrackingLoop]);
 
     const handleStartGame = async () => {

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Logo from "@/components/ui/Logo";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -14,17 +15,8 @@ export default function TermsOfServicePage() {
       {/* ═══ CYBER HEADER / NAVBAR ═══ */}
       <header className="sticky top-0 z-50 bg-black/60 backdrop-blur-md border-b border-white/10 px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 relative flex items-center justify-center">
-              <div className="absolute w-8 h-8 rounded-full border-2 border-red group-hover:scale-105 transition-transform" />
-              <div className="absolute w-1 h-1 rounded-full bg-red" />
-              <div className="absolute w-4 h-px bg-red" />
-              <div className="absolute w-px h-4 bg-red" />
-            </div>
-            <span className="text-xl font-black uppercase tracking-tight">
-              <span className="text-white">AIM</span>
-              <span className="text-red">SYNC</span>
-            </span>
+          <Link href="/" className="inline-flex items-center">
+            <Logo size={32} showText={true} />
           </Link>
 
           <div className="flex items-center gap-4">

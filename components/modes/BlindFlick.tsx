@@ -104,8 +104,10 @@ export default function BlindFlick({ overrideSettings, onFinish }: BlindFlickPro
         const elapsedSec = (performance.now() - sessionStartRef.current) / 1000;
         const radius = getScaledRadius(config.targetRadius, effectiveDifficulty, elapsedSec, engine.duration);
         
-        const nextTarget = createStaticTarget(engine.dimensions.width, engine.dimensions.height, radius);
+        const ttl = config.targetLifetimeMs || 800;
+        const nextTarget = createStaticTarget(engine.dimensions.width, engine.dimensions.height, radius, ttl);
         nextTarget.spawnedAt = performance.now();
+        nextTarget.timeToLive = ttl;
         
         targetRef.current = nextTarget;
         setTarget(nextTarget);
@@ -119,9 +121,11 @@ export default function BlindFlick({ overrideSettings, onFinish }: BlindFlickPro
         // Safety timeout in case they never move their mouse
         safetyTimeoutRef.current = window.setTimeout(() => {
             if (engine.sessionIdxRef.current !== currentSession) return;
+            setTarget(null);
+            targetRef.current = null;
             engine.incrementTimeoutMiss(config.missPenalty);
             spawnTarget();
-        }, config.targetLifetimeMs);
+        }, nextTarget.timeToLive || 800);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [config, effectiveDifficulty, engine.dimensions, engine.duration, engine.incrementSpawned, engine.incrementTimeoutMiss]);
 

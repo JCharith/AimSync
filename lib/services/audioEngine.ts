@@ -92,7 +92,7 @@ class AudioEngine {
 
     // ── Gain (ultra-sharp decay) ──────────────────────────────────────────────
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.3, t0);
+    gain.gain.setValueAtTime(0.4, t0);
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
 
     // ── Routing ──────────────────────────────────────────────────────────────
@@ -240,7 +240,7 @@ class AudioEngine {
 
     // ── Gain ─────────────────────────────────────────────────────────────────
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.2, t0);
+    gain.gain.setValueAtTime(0.15, t0);
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.2);
 
     // ── Routing ──────────────────────────────────────────────────────────────

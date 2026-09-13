@@ -145,20 +145,23 @@ export default function TrackingMode({ overrideSettings, onFinish }: TrackingMod
         // Clear trail queue on spawn
         targetTrailRef.current = [];
 
+        const ttl = config.targetLifetimeMs + 1000;
         const baseTarget = createTrackingTarget(
             effectiveDifficulty,
             engine.dimensions.width,
             engine.dimensions.height,
-            radius
+            radius,
+            ttl
         );
         targetRef.current = { ...baseTarget, health: 100, isBeingTracked: false };
         startTrackingLoop();
 
         engine.addTimeout(() => {
             if (!engine.isMountedRef.current || engine.sessionIdxRef.current !== currentSession) return;
+            targetRef.current = null;
             engine.incrementTimeoutMiss(config.missPenalty);
             spawnTarget();
-        }, config.targetLifetimeMs + 1000);
+        }, ttl);
     }, [config, effectiveDifficulty, engine, startTrackingLoop]);
 
     const handleStartGame = async () => {

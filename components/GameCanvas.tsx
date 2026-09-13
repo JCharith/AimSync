@@ -16,6 +16,7 @@ import { StorageEngine } from '@/lib/utils/storage';
 import { useRawInput } from '@/hooks/useRawInput';
 import { useWeaponAudio } from '@/hooks/useWeaponAudio';
 import { GameHUDOverlay, GameHUDOverlayRef } from './game/GameHUDOverlay';
+import ResolutionGuard from '@/components/guards/ResolutionGuard';
 
 // Reusable Vector2 reference to prevent GC allocation in the 144Hz loop
 const CENTER_COORDS = new THREE.Vector2(0, 0);
@@ -439,27 +440,29 @@ export default function GameCanvas() {
 
     // --- REGULAR GAME RENDER ---
     return (
-        <div className="w-full h-screen bg-zinc-900 relative overflow-hidden">
+        <ResolutionGuard>
+            <div className="w-full h-screen bg-zinc-900 relative overflow-hidden">
 
-            <div className="absolute top-4 left-4 z-50 text-white/50 font-mono text-[10px] uppercase tracking-widest pointer-events-none">
-                {activeMode.replace('-', ' ')} // {difficulty} // Click to lock crosshair
-            </div>
-
-            {/* Playlist Progress Tracker */}
-            {playlistTasks.length > 0 && (
-                <div className="absolute top-20 left-1/2 -translate-x-1/2 mt-2 flex gap-1 z-50 pointer-events-none">
-                    {playlistTasks.map((_, i) => (
-                        <div key={i} className={`h-1.5 w-6 rounded-full ${i <= currentTaskIndex ? 'bg-[#3366FF] shadow-[0_0_10px_rgba(51,102,255,0.8)]' : 'bg-white/10'}`} />
-                    ))}
+                <div className="absolute top-4 left-4 z-50 text-white/50 font-mono text-[10px] uppercase tracking-widest pointer-events-none">
+                    {activeMode.replace('-', ' ')} // {difficulty} // Click to lock crosshair
                 </div>
-            )}
 
-            <Canvas>
-                <EngineCore targetScale={getTargetScale()} activeMode={activeMode} />
-            </Canvas>
+                {/* Playlist Progress Tracker */}
+                {playlistTasks.length > 0 && (
+                    <div className="absolute top-20 left-1/2 -translate-x-1/2 mt-2 flex gap-1 z-50 pointer-events-none">
+                        {playlistTasks.map((_, i) => (
+                            <div key={i} className={`h-1.5 w-6 rounded-full ${i <= currentTaskIndex ? 'bg-[#3366FF] shadow-[0_0_10px_rgba(51,102,255,0.8)]' : 'bg-white/10'}`} />
+                        ))}
+                    </div>
+                )}
 
-            {/* Zero Re-Render HUD Overlay */}
-            <GameHUDOverlay ref={hudRef} />
-        </div>
+                <Canvas>
+                    <EngineCore targetScale={getTargetScale()} activeMode={activeMode} />
+                </Canvas>
+
+                {/* Zero Re-Render HUD Overlay */}
+                <GameHUDOverlay ref={hudRef} isActive={!isMatchOver} gameState={isMatchOver ? "finished" : "ACTIVE"} />
+            </div>
+        </ResolutionGuard>
     );
 }

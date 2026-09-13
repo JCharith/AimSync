@@ -72,6 +72,8 @@ export default function CognitiveOverdrive({ overrideSettings, onFinish }: Cogni
         const elapsedSec = (performance.now() - sessionStartRef.current) / 1000;
         const radius = getScaledRadius(config.targetRadius, effectiveDifficulty, elapsedSec, engine.duration);
         const nextTarget = createStaticTarget(engine.dimensions.width, engine.dimensions.height, radius);
+        const ttl = config.targetLifetimeMs * 1.5;
+        nextTarget.timeToLive = ttl;
         activeTargetId.current = nextTarget.id;
 
         setTarget(nextTarget);
@@ -96,9 +98,11 @@ export default function CognitiveOverdrive({ overrideSettings, onFinish }: Cogni
 
         engine.addTimeout(() => {
             if (engine.sessionIdxRef.current !== currentSession) return;
+            setTarget(null);
+            setDistractors([]);
             engine.incrementTimeoutMiss(config.missPenalty);
             spawnTarget();
-        }, config.targetLifetimeMs * 1.5);
+        }, nextTarget.timeToLive || 800);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [config, effectiveDifficulty, engine.dimensions, engine.duration, engine.incrementSpawned, engine.incrementTimeoutMiss]);
 

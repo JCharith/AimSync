@@ -60,12 +60,14 @@ export default function MicroAdjust({ overrideSettings, onFinish }: MicroAdjustP
         const elapsedSec = (performance.now() - sessionStartRef.current) / 1000;
         const currentRadius = getScaledRadius(microRadius, effectiveDifficulty, elapsedSec, engine.duration);
 
+        const ttl = config.targetLifetimeMs || 800;
         const nextTarget = createMicroAdjustTarget(
             engine.dimensions.width,
             engine.dimensions.height,
             currentRadius,
             currentX,
-            currentY
+            currentY,
+            ttl
         );
 
         setTarget(nextTarget);
@@ -74,9 +76,10 @@ export default function MicroAdjust({ overrideSettings, onFinish }: MicroAdjustP
 
         engine.addTimeout(() => {
             if (engine.sessionIdxRef.current !== currentSession) return;
+            setTarget(null);
             engine.incrementTimeoutMiss(config.missPenalty);
             spawnTarget();
-        }, config.targetLifetimeMs);
+        }, nextTarget.timeToLive || 800);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [config, effectiveDifficulty, engine.dimensions, engine.duration, microRadius, target, engine.incrementSpawned, engine.incrementTimeoutMiss]);
 

@@ -75,24 +75,28 @@ export default function StaticFlick({ overrideSettings, onFinish }: StaticFlickP
         const currentSession = engine.sessionIdxRef.current;
         const elapsedSec = (performance.now() - sessionStartRef.current) / 1000;
         
+        const radius = getScaledRadius(config.targetRadius, effectiveDifficulty, elapsedSec, engine.duration);
         let nextTarget;
         const targetIndex = engine.totalTargetsSpawned;
         if (engine.loadedGhost && engine.loadedGhost.targets && engine.loadedGhost.targets[targetIndex]) {
             const gTgt = engine.loadedGhost.targets[targetIndex];
             const x = (gTgt.x / 1000) * engine.dimensions.width;
             const y = (gTgt.y / 1000) * engine.dimensions.height;
-            const radius = (gTgt.radius / 1000) * Math.min(engine.dimensions.width, engine.dimensions.height);
+            const ghostRadius = (gTgt.radius / 1000) * Math.min(engine.dimensions.width, engine.dimensions.height);
             nextTarget = {
                 id: crypto.randomUUID(),
                 x,
                 y,
-                radius,
+                radius: ghostRadius,
                 spawnedAt: performance.now(),
             };
         } else {
-            const radius = getScaledRadius(config.targetRadius, effectiveDifficulty, elapsedSec, engine.duration);
-            nextTarget = createStaticTarget(engine.dimensions.width, engine.dimensions.height, radius);
+            const ttl = config.targetLifetimeMs || 800;
+            nextTarget = createStaticTarget(engine.dimensions.width, engine.dimensions.height, radius, ttl);
             nextTarget.spawnedAt = performance.now();
+        }
+        if (!nextTarget.timeToLive) {
+            nextTarget.timeToLive = config.targetLifetimeMs || 800;
         }
         activeTargetId.current = nextTarget.id;
 
@@ -113,10 +117,11 @@ export default function StaticFlick({ overrideSettings, onFinish }: StaticFlickP
 
         engine.addTimeout(() => {
             if (engine.sessionIdxRef.current !== currentSession) return;
+            setTarget(null);
             kinematics.discardTarget(nextTarget.id);
             engine.incrementTimeoutMiss(config.missPenalty);
             spawnTarget();
-        }, config.targetLifetimeMs);
+        }, nextTarget.timeToLive || 800);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [config, effectiveDifficulty, engine.dimensions, engine.duration, engine.incrementSpawned, engine.incrementTimeoutMiss, engine.totalTargetsSpawned, engine.loadedGhost, engine.recordSpawnedTarget]);
 

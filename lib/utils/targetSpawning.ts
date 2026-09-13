@@ -29,7 +29,7 @@ export const getRandomTargetPosition = (canvasWidth: number, canvasHeight: numbe
 };
 
 // 2. The Missing Export that caused the crash
-export const createStaticTarget = (canvasWidth: number, canvasHeight: number, radius: number): BaseTarget => {
+export const createStaticTarget = (canvasWidth: number, canvasHeight: number, radius: number, timeToLive = 800): BaseTarget => {
     const { x, y } = getRandomTargetPosition(canvasWidth, canvasHeight, radius);
     return {
         id: createTargetId(),
@@ -37,6 +37,7 @@ export const createStaticTarget = (canvasWidth: number, canvasHeight: number, ra
         y,
         radius,
         spawnedAt: performance.now(),
+        timeToLive,
     };
 };
 
@@ -45,7 +46,8 @@ export function createMicroAdjustTarget(
     canvasHeight: number,
     targetRadius: number,
     lastX?: number | null,
-    lastY?: number | null
+    lastY?: number | null,
+    timeToLive = 800
 ): BaseTarget {
     // Define what "Micro" actually means mathematically.
     // Minimum distance ensures it doesn't overlap the old target.
@@ -92,6 +94,7 @@ export function createMicroAdjustTarget(
         y,
         radius: targetRadius,
         spawnedAt: performance.now(),
+        timeToLive,
     };
 }
 
@@ -105,7 +108,7 @@ export const getTargetSwitchCount = (difficulty: Difficulty): number => {
     }
 };
 
-export const createTargetSwitchWave = (difficulty: Difficulty, canvasWidth: number, canvasHeight: number, radius: number): SwitchTarget[] => {
+export const createTargetSwitchWave = (difficulty: Difficulty, canvasWidth: number, canvasHeight: number, radius: number, timeToLive = 800): SwitchTarget[] => {
     const count = getTargetSwitchCount(difficulty);
     const targets: SwitchTarget[] = Array.from({ length: count }, () => {
         const { x, y } = getRandomTargetPosition(canvasWidth, canvasHeight, radius);
@@ -115,6 +118,7 @@ export const createTargetSwitchWave = (difficulty: Difficulty, canvasWidth: numb
             y,
             radius,
             spawnedAt: performance.now(),
+            timeToLive,
             isCorrect: false,
         };
     });
@@ -133,7 +137,7 @@ export const getTrackingSpeed = (difficulty: Difficulty): number => {
     }
 };
 
-export const createTrackingTarget = (difficulty: Difficulty, canvasWidth: number, canvasHeight: number, radius: number): MovingTarget => {
+export const createTrackingTarget = (difficulty: Difficulty, canvasWidth: number, canvasHeight: number, radius: number, timeToLive = 800): MovingTarget => {
     const { x, y } = getRandomTargetPosition(canvasWidth, canvasHeight, radius);
     const speed = getTrackingSpeed(difficulty);
     const angle = Math.random() * Math.PI * 2;
@@ -143,6 +147,7 @@ export const createTrackingTarget = (difficulty: Difficulty, canvasWidth: number
         y,
         radius,
         spawnedAt: performance.now(),
+        timeToLive,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
     };

@@ -1,12 +1,12 @@
 import Link from "next/link";
+import Logo from "@/components/ui/Logo";
 
 export default function Navbar() {
     return (
         <nav className="h-16 border-b border-white/5 bg-surface/80 backdrop-blur-md flex items-center justify-between px-6 z-50 sticky top-0">
             <div className="flex items-center">
-                <Link href="/" className="text-xl font-bold tracking-tight uppercase">
-                    <span className="text-text-primary">AIM</span>
-                    <span className="text-red">SYNC</span>
+                <Link href="/" className="inline-flex items-center">
+                    <Logo size={32} showText={true} src="/images/logo.png" />
                 </Link>
             </div>
 

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import Logo from "@/components/ui/Logo";
 
 export function LandingFooter() {
   return (
@@ -9,17 +10,8 @@ export function LandingFooter() {
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
         {/* Brand Col */}
         <div className="space-y-6 col-span-1 md:col-span-2">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 relative flex items-center justify-center">
-              <div className="absolute w-8 h-8 rounded-full border-2 border-red" />
-              <div className="absolute w-1 h-1 rounded-full bg-red" />
-              <div className="absolute w-4 h-px bg-red" />
-              <div className="absolute w-px h-4 bg-red" />
-            </div>
-            <span className="text-2xl font-black uppercase tracking-tighter">
-              <span className="text-white">AIM</span>
-              <span className="text-red">SYNC</span>
-            </span>
+          <Link href="/" className="inline-flex items-center">
+            <Logo size={32} showText={true} />
           </Link>
           <p className="text-sm text-slate-400 leading-relaxed max-w-sm font-medium">
             The edge-native browser aim trainer. 14 precision drills, 0 MB installer, powered by Cloudflare D1. Benchmark, analyze, and elevate your aim.
