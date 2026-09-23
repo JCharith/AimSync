@@ -249,7 +249,7 @@ export default function MicroAdjust({ overrideSettings, onFinish }: MicroAdjustP
                                 width={engine.dimensions.width}
                                 height={engine.dimensions.height}
                                 onMouseDown={handleCanvasMouseDown}
-                                className="absolute inset-0 block cursor-crosshair"
+                                className="absolute inset-0 block cursor-none"
                             />
                             <ComboMeter combo={engine.combo} />
                         </div>

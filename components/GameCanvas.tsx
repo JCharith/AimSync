@@ -276,7 +276,7 @@ export default function GameCanvas() {
     const playlistId = searchParams.get('playlist');
     const paramMode = searchParams.get('mode') || 'static-flick';
     const paramTime = parseInt(searchParams.get('time') || '0', 10);
-    const paramDiff = searchParams.get('diff') || 'Normal';
+    const paramDiff = searchParams.get('diff') || 'Bonus';
 
     // 2. Sequence State
     const [playlistTasks, setPlaylistTasks] = useState<any[]>([]);
@@ -335,11 +335,35 @@ export default function GameCanvas() {
         initHUD();
     }, [activeMode, timeLimit, currentTaskIndex]);
 
+    const [isPointerLocked, setIsPointerLocked] = useState(false);
+
+    useEffect(() => {
+        const handleLockChange = () => {
+            const locked = !!document.pointerLockElement;
+            setIsPointerLocked(locked);
+        };
+        document.addEventListener('pointerlockchange', handleLockChange);
+        return () => document.removeEventListener('pointerlockchange', handleLockChange);
+    }, []);
+
+    const handleFocusClick = () => {
+        const canvas = document.querySelector('canvas');
+        if (canvas) {
+            try {
+                const res = (canvas.requestPointerLock as any)({ unadjustedMovement: true });
+                if (res && typeof res.catch === 'function') res.catch(() => canvas.requestPointerLock());
+            } catch {
+                canvas.requestPointerLock();
+            }
+        }
+    };
+
     // 4. The Countdown Timer (zero-re-render update loop)
     useEffect(() => {
         if (timeLimit <= 0) return; // Freeplay sandbox mode
 
         const timer = setInterval(() => {
+            if (!document.pointerLockElement) return; // Timer paused until user clicks & locks crosshair
             timeLeftRef.current -= 1;
             
             // Push directly to UI Layer
@@ -362,14 +386,12 @@ export default function GameCanvas() {
 
     // 5. Tactical Difficulty Scaler
     const getTargetScale = () => {
-        switch (difficulty.toLowerCase()) {
-            case 'eco': return 1.2;
-            case 'normal': return 1.0;
-            case 'bonus': return 0.75;
-            case 'force buy': return 0.5;
-            case 'full buy': return 0.3;
-            default: return 1.0;
-        }
+        const norm = difficulty.toLowerCase().trim();
+        if (norm === 'eco' || norm === 'easy') return 1.1;
+        if (norm === 'bonus' || norm === 'medium' || norm === 'normal') return 0.85;
+        if (norm === 'force buy' || norm === 'force-buy' || norm === 'hard') return 0.65;
+        if (norm === 'full buy' || norm === 'full-buy' || norm === 'extreme') return 0.45;
+        return 0.85;
     };
 
     // 6. Sequence Logic (Next Task)
@@ -385,8 +407,18 @@ export default function GameCanvas() {
             timeLeftRef.current = nextTask.timeLimit;
             setIsMatchOver(false);
         } else {
+            document.exitPointerLock?.();
+            document.exitFullscreen?.().catch(() => {});
+            useGameStore.getState().reset();
             router.push('/dashboard');
         }
+    };
+
+    const handleAbortToHub = () => {
+        document.exitPointerLock?.();
+        document.exitFullscreen?.().catch(() => {});
+        useGameStore.getState().reset();
+        router.push('/dashboard');
     };
 
     // --- RESULTS / BRIEFING SCREEN ---
@@ -412,7 +444,7 @@ export default function GameCanvas() {
 
                 <div className="flex gap-4 relative z-10">
                     <button
-                        onClick={() => router.push('/dashboard')}
+                        onClick={handleAbortToHub}
                         className="px-8 py-4 bg-white/5 border border-white/10 hover:bg-white/10 font-bold uppercase tracking-widest rounded transition-all"
                     >
                         Abort Sequence
@@ -427,7 +459,7 @@ export default function GameCanvas() {
                         </button>
                     ) : (
                         <button
-                            onClick={() => router.push('/dashboard')}
+                            onClick={handleAbortToHub}
                             className="px-8 py-4 bg-[#3366FF] hover:bg-blue-500 font-black uppercase tracking-widest rounded transition-colors shadow-[0_0_20px_rgba(51,102,255,0.3)]"
                         >
                             Return to Mission Control
@@ -453,6 +485,31 @@ export default function GameCanvas() {
                         {playlistTasks.map((_, i) => (
                             <div key={i} className={`h-1.5 w-6 rounded-full ${i <= currentTaskIndex ? 'bg-[#3366FF] shadow-[0_0_10px_rgba(51,102,255,0.8)]' : 'bg-white/10'}`} />
                         ))}
+                    </div>
+                )}
+
+                {/* Sleek Click to Focus & Lock Crosshair Overlay */}
+                {!isPointerLocked && !isMatchOver && (
+                    <div
+                        onClick={handleFocusClick}
+                        className="absolute inset-0 z-[150] flex flex-col items-center justify-center bg-black/75 backdrop-blur-md cursor-pointer animate-in fade-in duration-200"
+                    >
+                        <div className="p-8 border border-white/10 bg-[#121212]/95 rounded-2xl text-center shadow-2xl space-y-4 max-w-md pointer-events-auto">
+                            <div className="w-14 h-14 rounded-full bg-[#3366FF]/20 border border-[#3366FF] flex items-center justify-center mx-auto text-[#3366FF] text-2xl font-bold animate-pulse">
+                                🎯
+                            </div>
+                            <h2 className="text-2xl font-black uppercase tracking-widest text-white">
+                                {timeLeftRef.current < timeLimit ? "Click to Resume" : "Click to Focus & Lock Crosshair"}
+                            </h2>
+                            <p className="text-xs text-slate-400 font-mono tracking-wider">
+                                Unconstrained raw mouse input active. Press ESC anytime to pause session.
+                            </p>
+                            <div className="pt-2">
+                                <span className="px-6 py-3 bg-[#3366FF] text-white font-black text-xs uppercase tracking-widest rounded-lg inline-block shadow-[0_0_20px_rgba(51,102,255,0.4)]">
+                                    Engage Lock
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 )}
 

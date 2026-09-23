@@ -208,23 +208,22 @@ function GameEngine() {
     }, [diffParam, timeParam, isTrial]);
 
     const handleModeFinish = () => {
+        if (document.pointerLockElement) {
+            document.exitPointerLock();
+        }
         if (document.fullscreenElement) {
             document.exitFullscreen().catch((err) => {
                 console.warn("Could not exit fullscreen naturally:", err);
             });
         }
+        const { reset } = require("@/store/gameStore").useGameStore.getState();
+        reset();
         router.push("/dashboard");
     };
 
     if (compiledRoutine) {
         return (
             <div className="relative w-full h-screen bg-[#121212] overflow-hidden">
-                <button
-                    onClick={handleModeFinish}
-                    className="absolute bottom-6 right-6 z-[100] px-4 py-2 bg-black/50 border border-white/10 rounded text-xs font-bold tracking-widest text-gray-400 hover:text-white hover:border-white/30 transition-all backdrop-blur-md"
-                >
-                    ABORT TO HUB
-                </button>
                 <RoutineRunner
                     routine={compiledRoutine}
                     onComplete={handleModeFinish}
@@ -238,7 +237,7 @@ function GameEngine() {
             <div className="flex flex-col items-center justify-center h-screen bg-[#121212] text-white space-y-4">
                 <h2 className="text-2xl font-black tracking-widest uppercase">Invalid Protocol</h2>
                 <button
-                    onClick={() => router.push("/dashboard")}
+                    onClick={handleModeFinish}
                     className="px-6 py-2 bg-[#3366FF] hover:bg-white hover:text-[#3366FF] transition-all rounded-lg font-bold tracking-widest uppercase text-sm"
                 >
                     Return to Hub
@@ -251,17 +250,6 @@ function GameEngine() {
 
     return (
         <div className="relative w-full h-screen bg-[#121212] overflow-hidden">
-
-
-
-            {/* Existing Abort Button */}
-            <button
-                onClick={handleModeFinish}
-                className="absolute bottom-6 right-6 z-[100] px-4 py-2 bg-black/50 border border-white/10 rounded text-xs font-bold tracking-widest text-gray-400 hover:text-white hover:border-white/30 transition-all backdrop-blur-md"
-            >
-                ABORT TO HUB
-            </button>
-
             {/* The Active Mode Component */}
             {React.createElement(ActiveComponent as any, { 
                 key: `${currentMode}-${JSON.stringify(overrideSettings)}`,

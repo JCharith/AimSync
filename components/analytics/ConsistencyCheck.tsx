@@ -468,7 +468,7 @@ export default function ConsistencyCheck({ overrideSettings, onFinish }: Consist
                                 width={engine.dimensions.width}
                                 height={engine.dimensions.height}
                                 onMouseMove={updateMousePosition}
-                                className="absolute inset-0 block cursor-crosshair"
+                                className="absolute inset-0 block cursor-none"
                             />
                         </div>
 

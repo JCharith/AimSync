@@ -334,7 +334,7 @@ export default function CognitiveOverdrive({ overrideSettings, onFinish }: Cogni
                                 width={engine.dimensions.width}
                                 height={engine.dimensions.height}
                                 onMouseDown={handleCanvasMouseDown}
-                                className="absolute inset-0 block cursor-crosshair"
+                                className="absolute inset-0 block cursor-none"
                             />
                             <ComboMeter combo={engine.combo} />
                         </div>

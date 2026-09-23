@@ -6,6 +6,8 @@ export type DifficultySettings = {
     targetLifetimeMs: number;
     scorePerHit: number;
     missPenalty: number;
+    targetScale: number;
+    speedMultiplier: number;
 };
 
 export const difficultyLabels: Record<Difficulty, string> = {
@@ -17,28 +19,36 @@ export const difficultyLabels: Record<Difficulty, string> = {
 
 export const difficultyConfig: Record<Difficulty, DifficultySettings> = {
     easy: {
-        targetRadius: 40,
-        targetLifetimeMs: 1400,
+        targetRadius: 44,
+        targetLifetimeMs: 2000,
         scorePerHit: 100,
         missPenalty: 30,
+        targetScale: 1.1,
+        speedMultiplier: 0.85,
     },
     medium: {
-        targetRadius: 32,
-        targetLifetimeMs: 1100,
+        targetRadius: 34,
+        targetLifetimeMs: 1500,
         scorePerHit: 115,
         missPenalty: 35,
+        targetScale: 0.85,
+        speedMultiplier: 1.0,
     },
     hard: {
-        targetRadius: 25,
-        targetLifetimeMs: 850,
+        targetRadius: 26,
+        targetLifetimeMs: 1100,
         scorePerHit: 130,
         missPenalty: 40,
+        targetScale: 0.65,
+        speedMultiplier: 1.25,
     },
     extreme: {
-        targetRadius: 20,
-        targetLifetimeMs: 650,
+        targetRadius: 18,
+        targetLifetimeMs: 800,
         scorePerHit: 150,
         missPenalty: 45,
+        targetScale: 0.45,
+        speedMultiplier: 1.5,
     },
 };
 

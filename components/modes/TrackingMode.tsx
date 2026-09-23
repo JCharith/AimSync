@@ -43,6 +43,8 @@ export default function TrackingMode({ overrideSettings, onFinish }: TrackingMod
     const preRenderedHitCanvasRef = useRef<HTMLCanvasElement | OffscreenCanvas | null>(null);
     const preRenderedMissCanvasRef = useRef<HTMLCanvasElement | OffscreenCanvas | null>(null);
     const lastPreRenderedRadius = useRef<number | null>(null);
+    const offTargetStartTimeRef = useRef<number | null>(null);
+    const trackingHitTimeRef = useRef<number>(0);
 
     const startTrackingLoop = useCallback(() => {
         let lastTime = performance.now();
@@ -64,7 +66,23 @@ export default function TrackingMode({ overrideSettings, onFinish }: TrackingMod
                 let newHealth = targetRef.current.health;
 
                 if (isHit) {
+                    offTargetStartTimeRef.current = null;
                     newHealth -= (deltaTime * 0.25);
+                    trackingHitTimeRef.current += deltaTime;
+                    if (trackingHitTimeRef.current >= 150) {
+                        engine.triggerHit(0);
+                        trackingHitTimeRef.current = 0;
+                    }
+                } else {
+                    const now = currentTime;
+                    if (offTargetStartTimeRef.current === null) {
+                        offTargetStartTimeRef.current = now;
+                    } else if (now - offTargetStartTimeRef.current > 125) {
+                        // Off target exceeds 125ms grace window -> break combo
+                        if (engine.combo > 0) {
+                            engine.triggerMiss(0);
+                        }
+                    }
                 }
 
                 if (newHealth <= 0) {
@@ -296,7 +314,7 @@ export default function TrackingMode({ overrideSettings, onFinish }: TrackingMod
                                 onMouseMove={updateMousePosition}
                                 onMouseDown={updateMousePosition}
                                 onClick={handleCanvasClick}
-                                className="absolute inset-0 block cursor-crosshair"
+                                className="absolute inset-0 block cursor-none"
                             />
                         </div>
 

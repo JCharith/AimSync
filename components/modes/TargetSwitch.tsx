@@ -374,7 +374,7 @@ export default function TargetSwitch({ overrideSettings, onFinish }: TargetSwitc
                                 width={renderDimensions.width}
                                 height={renderDimensions.height}
                                 onMouseDown={handleCanvasMouseDown}
-                                className="absolute inset-0 block cursor-crosshair"
+                                className="absolute inset-0 block cursor-none"
                             />
                             
                             <ComboMeter combo={combo} />

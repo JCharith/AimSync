@@ -82,7 +82,7 @@ function Target({ id, position, onHit, scale, isFriendly, activeMode, spawnTime 
             <mesh
                 position={position}
                 name="target"
-                userData={{ id, onHit, isFriendly, spawnTime }}
+                userData={{ id, onHit, isFriendly, spawnTime, isDead: false }}
             >
                 <sphereGeometry args={[0.5 * scale, 12, 12]} />
                 <meshBasicMaterial color={targetColor} />

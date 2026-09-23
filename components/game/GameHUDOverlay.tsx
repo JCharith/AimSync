@@ -25,6 +25,10 @@ export interface GameHUDOverlayProps {
 }
 
 export const GameHUDOverlay = forwardRef<GameHUDOverlayRef, GameHUDOverlayProps>((props, ref) => {
+    if (props.gameState === 'finished' || props.isActive === false) {
+        return null;
+    }
+
     const isZenActive = props.isActive === true || props.gameState === 'ACTIVE' || props.gameState === 'live';
     // DOM references for Zero React Re-render updates
     const ammoFillRef = useRef<HTMLDivElement>(null);

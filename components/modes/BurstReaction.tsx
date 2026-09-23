@@ -230,7 +230,7 @@ export default function BurstReaction({ overrideSettings, onFinish }: BurstReact
                             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#050505_100%)] pointer-events-none" />
                         </div>
                         <div className="relative z-10 w-full h-full">
-                            <canvas ref={engine.canvasRef} width={engine.dimensions.width} height={engine.dimensions.height} onMouseDown={handleCanvasMouseDown} className="absolute inset-0 block cursor-crosshair" />
+                            <canvas ref={engine.canvasRef} width={engine.dimensions.width} height={engine.dimensions.height} onMouseDown={handleCanvasMouseDown} className="absolute inset-0 block cursor-none" />
                             <ComboMeter combo={engine.combo} />
                         </div>
                         {isCountingDown && (

@@ -174,15 +174,18 @@ export default function ResultsScreen({
     };
 
     const handleReturnToHub = async () => {
+        if (document.pointerLockElement) {
+            document.exitPointerLock();
+        }
+        if (document.fullscreenElement) {
+            await document.exitFullscreen().catch(() => {});
+        }
+        storeReset();
         if (onBackToDashboard) {
             onBackToDashboard();
         } else if (onBackToMenu) {
             onBackToMenu();
         } else {
-            storeReset();
-            if (document.fullscreenElement) {
-                await document.exitFullscreen().catch(() => {});
-            }
             router.push('/dashboard');
         }
     };

@@ -370,7 +370,7 @@ export default function FlickBenchmark({ onFinish }: FlickBenchmarkProps) {
                                 width={engine.dimensions.width}
                                 height={engine.dimensions.height}
                                 onMouseDown={handleCanvasMouseDown}
-                                className="absolute inset-0 block cursor-crosshair"
+                                className="absolute inset-0 block cursor-none"
                             />
                         </div>
                     </div>

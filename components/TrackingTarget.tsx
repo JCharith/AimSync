@@ -19,14 +19,14 @@ export default function TrackingTarget({ id, baseDistance = -15, activeMode = 'c
     const activeWeapon = useWeaponStore((state) => state.activeWeapon);
     const { getShotTrajectory } = useRecoil(activeWeapon);
 
-    // Random frequencies & radii for Lissajous trajectory
+    // Random frequencies & radii for Lissajous trajectory (tamed for natural wrist/arm tracking)
     const { speedX, speedY, speedZ, radiusX, radiusY, radiusZ } = useMemo(() => ({
-        speedX: Math.random() * 1.5 + 0.6,
-        speedY: Math.random() * 1.5 + 0.6,
-        speedZ: Math.random() * 1.0 + 0.3,
-        radiusX: Math.random() * 6 + 4,
-        radiusY: Math.random() * 4 + 2.5,
-        radiusZ: Math.random() * 4 + 2,
+        speedX: Math.random() * 0.4 + 0.4,
+        speedY: Math.random() * 0.4 + 0.4,
+        speedZ: Math.random() * 0.3 + 0.2,
+        radiusX: Math.random() * 3.5 + 2.5,
+        radiusY: Math.random() * 2.5 + 1.5,
+        radiusZ: Math.random() * 2.0 + 1.0,
     }), []);
 
     const evasionOffset = useRef(new THREE.Vector3(0, 0, 0));

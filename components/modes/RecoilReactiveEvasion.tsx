@@ -356,7 +356,7 @@ export default function RecoilReactiveEvasion({ overrideSettings, onFinish }: Re
         <div className="relative w-full h-full bg-black rounded-xl overflow-hidden border border-white/5 shadow-2xl flex-1">
             <canvas
                 ref={canvasRef}
-                className="w-full h-full object-cover cursor-crosshair"
+                className="w-full h-full object-cover cursor-none"
             />
 
             {isFinished && engine.result && (
